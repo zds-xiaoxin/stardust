@@ -2081,6 +2081,7 @@ describe("ClaudeAdapterV2 resumeThread", () => {
         });
         const projectDir = path.join(configDir, "projects", "-workspace");
         yield* fileSystem.makeDirectory(projectDir, { recursive: true });
+        yield* fileSystem.writeFileString(path.join(configDir, "projects", ".DS_Store"), "");
         yield* fileSystem.writeFileString(
           path.join(projectDir, "native-thread-empty.jsonl"),
           [
@@ -2151,6 +2152,16 @@ describe("ClaudeAdapterV2 resumeThread", () => {
           },
         });
         assert.equal(missing.nativeThreadRef?.nativeId, "native-thread-missing");
+
+        // The first launch can fail before Claude writes a transcript. Retrying its
+        // native ID would issue --resume against a conversation that never existed.
+        const previousRunMissing = yield* Effect.flip(
+          runtime.resumeThread({
+            providerThread: missing,
+            previousTurnFailed: true,
+          }),
+        );
+        assert.equal(previousRunMissing._tag, "ProviderAdapterResumeThreadError");
 
         // An imported session's history lives only in its transcript.
         const missingImport = yield* Effect.flip(

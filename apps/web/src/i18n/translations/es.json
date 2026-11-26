@@ -1,4 +1,6 @@
 {
+  "f80647e11d4fd2a0": "Haz clic en una fila para ver los detalles. Vuelve a hacer clic o pulsa Esc para cerrar.",
+  "3abf045a6c75e67f": "Mostrar tarjeta de arriba ↑",
   "4bcfa3b976a421cf": "Chat lateral",
   "23be753133ae6950": "Hilo",
   "0001ae5846061bb6": "Hilo en {machine}",
@@ -12796,5 +12798,7 @@
   "02eb4f4152f2392e": "Codex sharing can’t recover yet",
   "ce0b30bb0d2f3540": "Codex sharing couldn’t continue",
   "6a871ed7ae052e4a": "This conversation still has work or an approval in progress. Try again after it’s resolved.",
-  "6e0f8941c344d5e3": "Automatic recovery couldn’t complete this request. Your conversation is still here. Select another provider in the composer and send the request again."
+  "6e0f8941c344d5e3": "Automatic recovery couldn’t complete this request. Your conversation is still here. Select another provider in the composer and send the request again.",
+  "f858dae2d80bdbae": "Espacio de trabajo: {workspace}",
+  "f04d00285fcc5e77": "Se crea una rama independiente al enviar el primer mensaje"
 }

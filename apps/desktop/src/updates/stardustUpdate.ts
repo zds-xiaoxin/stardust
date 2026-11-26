@@ -50,7 +50,11 @@ export const STARDUST_UPDATE_ERROR_MESSAGES: Readonly<Record<StardustUpdateError
 export class StardustUpdateError extends Error {
   readonly code: StardustUpdateErrorCode;
   readonly detail: string | undefined;
-  constructor(code: StardustUpdateErrorCode, detail?: string, message = STARDUST_UPDATE_ERROR_MESSAGES[code]) {
+  constructor(
+    code: StardustUpdateErrorCode,
+    detail?: string,
+    message = STARDUST_UPDATE_ERROR_MESSAGES[code],
+  ) {
     super(message);
     this.name = "StardustUpdateError";
     this.code = code;
@@ -147,7 +151,10 @@ export interface StardustRelease {
 
 export type StardustUpdateTarget = "macOS-arm64" | "Windows-x64";
 
-export function stardustAssetNames(target: StardustUpdateTarget, version: string): ReadonlyArray<string> {
+export function stardustAssetNames(
+  target: StardustUpdateTarget,
+  version: string,
+): ReadonlyArray<string> {
   const suffix = target === "macOS-arm64" ? "macOS-arm64.zip" : "Windows-x64-Setup.exe";
   return [
     `Stardust-v${version}-${suffix}`,
@@ -157,7 +164,11 @@ export function stardustAssetNames(target: StardustUpdateTarget, version: string
   ];
 }
 
-function checkedReleaseTag(value: unknown): { release: Record<string, unknown>; version: string; tag: string } {
+function checkedReleaseTag(value: unknown): {
+  release: Record<string, unknown>;
+  version: string;
+  tag: string;
+} {
   if (!value || typeof value !== "object") throw new StardustUpdateError("invalid-release");
   const release = value as Record<string, unknown>;
   const tag = typeof release.tag_name === "string" ? release.tag_name : "";
@@ -173,7 +184,10 @@ export function stardustReleaseVersion(value: unknown): string {
 }
 
 /** Parses GitHub's `releases/latest` response. Only URLs this function builds are ever fetched. */
-export function parseStardustRelease(value: unknown, target: StardustUpdateTarget = "macOS-arm64"): StardustRelease {
+export function parseStardustRelease(
+  value: unknown,
+  target: StardustUpdateTarget = "macOS-arm64",
+): StardustRelease {
   const { release, version, tag } = checkedReleaseTag(value);
   const names = stardustAssetNames(target, version);
   const assets = Array.isArray(release.assets) ? release.assets : [];
@@ -211,7 +225,9 @@ export function parseStardustRelease(value: unknown, target: StardustUpdateTarge
   throw new StardustUpdateError(
     "no-asset",
     `release ${tag} has no complete ${target} asset`,
-    target === "Windows-x64" ? "The latest release has no verifiable Windows x64 build." : undefined,
+    target === "Windows-x64"
+      ? "The latest release has no verifiable Windows x64 build."
+      : undefined,
   );
 }
 

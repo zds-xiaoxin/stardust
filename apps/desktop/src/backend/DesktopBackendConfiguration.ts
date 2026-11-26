@@ -177,9 +177,10 @@ const resolveResourceMonitorPath = Effect.fn(
 )(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fileSystem = yield* FileSystem.FileSystem;
-  const binaryName = environment.isPackaged && environment.platform === "win32"
-    ? STARDUST_WINDOWS_BRAND.resourceMonitor
-    : resourceMonitorBinaryName(environment.platform);
+  const binaryName =
+    environment.isPackaged && environment.platform === "win32"
+      ? STARDUST_WINDOWS_BRAND.resourceMonitor
+      : resourceMonitorBinaryName(environment.platform);
   const candidates = environment.isDevelopment
     ? [
         environment.path.join(

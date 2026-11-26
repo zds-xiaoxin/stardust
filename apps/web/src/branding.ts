@@ -45,7 +45,10 @@ export function appDisplayName(): string {
   return injected && APP_STAGE_LABEL === injected.stageLabel
     ? stardustNames.has(injected.displayName)
       ? appBaseName()
-      : injected.displayName.replace(/^(?:T3 Stardust|T3 星尘版|T3 Code|Stardust)(?= \(|$)/, appBaseName())
+      : injected.displayName.replace(
+          /^(?:T3 Stardust|T3 星尘版|T3 Code|Stardust)(?= \(|$)/,
+          appBaseName(),
+        )
     : formatAppDisplayName({ baseName: appBaseName(), stageLabel: APP_STAGE_LABEL });
 }
 export const APP_VERSION = import.meta.env.APP_VERSION || "0.0.0";

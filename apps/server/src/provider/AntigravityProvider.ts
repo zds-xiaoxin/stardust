@@ -186,10 +186,10 @@ const RUNTIME_MODES_WITHOUT_AUTO = [
 /** Auto is offered only where the session advertises agy's own Auto; elsewhere it runs Supervised. */
 function antigravityRuntimeModes(
   sessionSetupResult: AcpSessionRuntime.AcpSessionRuntimeStartResult["sessionSetupResult"],
-): ReadonlyArray<RuntimeMode> {
-  return parseSessionModeState(sessionSetupResult)?.availableModes.some(
-    (mode) => mode.id === "auto",
-  )
+): ReadonlyArray<RuntimeMode> | undefined {
+  const modeState = parseSessionModeState(sessionSetupResult);
+  if (modeState === undefined) return undefined;
+  return modeState.availableModes.some((mode) => mode.id === "auto")
     ? ["approval-required", "auto-accept-edits", "auto", "full-access"]
     : RUNTIME_MODES_WITHOUT_AUTO;
 }
@@ -411,7 +411,8 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
     const before = yield* SubscriptionRef.get(metadata);
     const supportsTextGeneration = yield* options.supportsTextGeneration;
     const updatedAt = DateTime.formatIso(yield* DateTime.now);
-    const supportedRuntimeModes = antigravityRuntimeModes(started.sessionSetupResult);
+    const supportedRuntimeModes =
+      antigravityRuntimeModes(started.sessionSetupResult) ?? RUNTIME_MODES_WITHOUT_AUTO;
     const previousModes = yield* SubscriptionRef.modify(metadata, (state) => {
       if (
         state.authRevision !== before.authRevision &&
@@ -464,10 +465,24 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
   ) {
     observeThinkingLevels(configOptions);
     const models = buildAntigravityModelsFromSession({ configOptions }, thinkingLevels);
-    yield* SubscriptionRef.update(metadata, (state) => {
-      if (state.draft.auth.status !== "authenticated") return state;
-      return { ...state, draft: { ...state.draft, models } };
+    const supportedRuntimeModes = antigravityRuntimeModes({ configOptions });
+    const updated = yield* SubscriptionRef.modify(metadata, (state) => {
+      if (state.draft.auth.status !== "authenticated") return [undefined, state] as const;
+      return [
+        { previousModes: state.draft.supportedRuntimeModes },
+        {
+          ...state,
+          draft: {
+            ...state.draft,
+            models,
+            ...(supportedRuntimeModes === undefined ? {} : { supportedRuntimeModes }),
+          },
+        },
+      ] as const;
     });
+    if (updated !== undefined && supportedRuntimeModes !== undefined) {
+      yield* rememberRuntimeModes(updated.previousModes, supportedRuntimeModes);
+    }
   });
 
   const onAvailableCommands = Effect.fn("AntigravityProvider.onAvailableCommands")(function* (

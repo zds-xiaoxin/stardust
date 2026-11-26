@@ -392,7 +392,7 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
     <div
       ref={appShellCommandsRef}
       className={cn(
-        "pointer-events-none fixed left-[var(--workspace-controls-left)] top-[var(--workspace-controls-top)] z-50 ml-px flex h-[var(--workspace-topbar-height)] items-center",
+        "pointer-events-none fixed left-[var(--workspace-controls-left)] top-[var(--workspace-fixed-controls-top,var(--workspace-controls-top))] z-50 ml-px flex h-[var(--workspace-topbar-height)] items-center",
         mobileSidebarSheetMounted && "hidden",
       )}
       data-sidebar-control=""
@@ -463,9 +463,7 @@ export function AppSidebarLayout({
     readWindowFullscreen,
   );
   const windowControlsInsetStyle = (
-    isMacosDesktop && !isWindowFullscreen
-      ? { "--workspace-controls-left": MACOS_TRAFFIC_LIGHTS_LEFT_INSET }
-      : {}
+    isMacosDesktop ? { "--workspace-controls-left": MACOS_TRAFFIC_LIGHTS_LEFT_INSET } : {}
   ) as CSSProperties;
   const sidebarProviderStyle = {
     "--sidebar-width": `${clampThreadSidebarWidth(sidebarWidth, sidebarMinimumWidth, sidebarMaximumWidth)}px`,
@@ -479,6 +477,7 @@ export function AppSidebarLayout({
         suspended={workbenchMode === "focus" && !pathname.startsWith("/settings")}
         onResume={() => useWorkbenchMode.getState().setMode(useWorkbenchMode.getState().resumeMode)}
         className="h-dvh! min-h-0!"
+        data-macos-native-fullscreen={isMacosDesktop && isWindowFullscreen ? "" : undefined}
         data-panel-animations={routePanelAnimationsActive ? "true" : "false"}
         storageKey="chat_thread_sidebar_open"
         style={sidebarProviderStyle}

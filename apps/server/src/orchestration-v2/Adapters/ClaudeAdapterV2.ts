@@ -14751,7 +14751,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         });
         yield* Effect.addFinalizer(() => closeSession());
 
-        // Metadata-only transcripts cannot be resumed or recreated; fail resumeThread to trigger a fresh session and handoff.
+        // A fresh native process can resume only a saved conversation.
         const claudeTranscriptState = Effect.fn("ClaudeAdapterV2.claudeTranscriptState")(function* (
           nativeThreadId: string,
         ) {
@@ -14762,9 +14762,15 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           for (const project of yield* fileSystem.readDirectory(projectsDir)) {
             const transcriptPath = path.join(projectsDir, project, `${nativeThreadId}.jsonl`);
             // Stray files beside the project dirs fail with ENOTDIR.
-            if (
-              !(yield* fileSystem.exists(transcriptPath).pipe(Effect.orElseSucceed(() => false)))
-            ) {
+            const exists = yield* fileSystem.exists(transcriptPath).pipe(Effect.option);
+            if (Option.isNone(exists)) {
+              const parent = yield* fileSystem
+                .stat(path.join(projectsDir, project))
+                .pipe(Effect.option);
+              if (Option.isNone(parent) || parent.value.type === "Directory") unreadable = true;
+              continue;
+            }
+            if (!exists.value) {
               continue;
             }
             const conversationLine = yield* fileSystem
@@ -14785,7 +14791,8 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             }
             found = true;
           }
-          return found && !unreadable ? ("empty" as const) : ("missing" as const);
+          if (unreadable) return "unknown" as const;
+          return found ? ("empty" as const) : ("missing" as const);
         });
 
         const runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime = {
@@ -14885,6 +14892,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             function* (threadInput: {
               readonly providerThread: OrchestrationV2ProviderThread;
               readonly importedNativeSession?: boolean;
+              readonly previousTurnFailed?: boolean;
             }) {
               const nativeThreadId = threadInput.providerThread.nativeThreadRef?.nativeId;
               if (nativeThreadId !== undefined && nativeThreadId !== null) {
@@ -14905,14 +14913,23 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                     detail: `Claude Code has no conversation ${nativeThreadId} to resume.`,
                   });
                 }
-                // An unreadable transcript leaves the resume to the CLI.
+                // A failed first launch may leave a T3 turn but no native transcript.
+                // Treat confirmed absence as a fresh-start handoff, not a CLI --resume.
                 const transcript = yield* claudeTranscriptState(nativeThreadId).pipe(
-                  Effect.orElseSucceed(() => "missing" as const),
+                  Effect.catch((error) =>
+                    Effect.succeed(
+                      error.reason._tag === "NotFound"
+                        ? ("missing" as const)
+                        : ("unknown" as const),
+                    ),
+                  ),
                 );
-                // Opening a missing imported session would start an empty one under its id.
                 if (
                   transcript === "empty" ||
-                  (transcript === "missing" && threadInput.importedNativeSession === true)
+                  (transcript === "missing" &&
+                    (threadInput.importedNativeSession === true ||
+                      threadInput.previousTurnFailed === true)) ||
+                  (transcript === "unknown" && threadInput.importedNativeSession === true)
                 ) {
                   return yield* new ProviderAdapter.ProviderAdapterProtocolError({
                     driver: CLAUDE_PROVIDER,

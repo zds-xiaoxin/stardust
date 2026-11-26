@@ -49,7 +49,7 @@ function spawnDetached(file: string, args: ReadonlyArray<string>): void {
   child.unref();
 }
 
-function spawnWindowsInstaller(script: string, logPath: string): void {
+function spawnWindowsInstaller(script: string, logPath: string): Promise<void> {
   const powershell = NodePath.join(
     process.env.SystemRoot ?? "C:\\Windows",
     "System32",
@@ -69,12 +69,16 @@ function spawnWindowsInstaller(script: string, logPath: string): void {
     ],
     { detached: true, stdio: "ignore", windowsHide: true },
   );
-  child.once("error", (cause) => {
-    void NodeFS.promises
-      .appendFile(logPath, `Installer launch failed: ${cause.message}\n`)
-      .catch(() => {});
-  });
   child.unref();
+  return new Promise((resolve, reject) => {
+    child.once("spawn", () => resolve());
+    child.once("error", (cause) => {
+      void NodeFS.promises
+        .appendFile(logPath, `Installer launch failed: ${cause.message}\n`)
+        .catch(() => {});
+      reject(cause);
+    });
+  });
 }
 
 function resolveWindowsLocalAppData(): string {

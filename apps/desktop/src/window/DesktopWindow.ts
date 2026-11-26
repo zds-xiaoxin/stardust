@@ -373,6 +373,14 @@ function getWindowTitleBarOptions(
   };
 }
 
+/** Mica sits under translucent surfaces, so it yields to reduced transparency and high contrast. */
+function micaAllowedByTheme(): boolean {
+  return (
+    !Electron.nativeTheme.prefersReducedTransparency &&
+    !Electron.nativeTheme.shouldUseHighContrastColors
+  );
+}
+
 function syncWindowAppearance(
   window: Electron.BrowserWindow,
   hasTitleBarOverlay: boolean,
@@ -385,7 +393,7 @@ function syncWindowAppearance(
       return;
     }
 
-    const useMica = micaSupported && hasTitleBarOverlay && !Electron.nativeTheme.prefersReducedTransparency;
+    const useMica = micaSupported && hasTitleBarOverlay && micaAllowedByTheme();
     window.setBackgroundColor(
       useMica ? "#00000000" : getInitialWindowBackgroundColor(shouldUseDarkColors),
     );
@@ -514,7 +522,7 @@ export const make = Effect.gen(function* () {
       yield* logWindowWarning("saved main window bounds could not be restored; using defaults");
     }
     if (yield* Ref.get(desktopState.quitting)) return Option.none();
-    const useMica = micaSupported && !Electron.nativeTheme.prefersReducedTransparency;
+    const useMica = micaSupported && micaAllowedByTheme();
     const window = yield* electronWindow.create({
       ...initialBounds,
       minWidth: DesktopAppSettings.MIN_MAIN_WINDOW_SIZE.width,
@@ -1360,7 +1368,13 @@ export const make = Effect.gen(function* () {
     syncAppearance: Effect.gen(function* () {
       const shouldUseDarkColors = yield* electronTheme.shouldUseDarkColors;
       yield* electronWindow.syncAllAppearance((window, { titleBarOverlay }) =>
-        syncWindowAppearance(window, titleBarOverlay, shouldUseDarkColors, environment.platform, micaSupported),
+        syncWindowAppearance(
+          window,
+          titleBarOverlay,
+          shouldUseDarkColors,
+          environment.platform,
+          micaSupported,
+        ),
       );
     }).pipe(Effect.withSpan("desktop.window.syncAppearance")),
   });

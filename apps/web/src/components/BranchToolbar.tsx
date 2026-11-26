@@ -13,7 +13,14 @@ import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environ
 import type { EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
 import { msg, T, useGT, useMessages } from "gt-react";
 import { m as resolveMessage } from "../i18n/messages";
-import { FolderGit2Icon, FolderGitIcon, FolderIcon, PlusIcon, ScaleIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  FolderGit2Icon,
+  FolderGitIcon,
+  FolderIcon,
+  PlusIcon,
+  ScaleIcon,
+} from "lucide-react";
 import {
   type Ref,
   type MouseEvent as ReactMouseEvent,
@@ -89,7 +96,7 @@ export interface BranchToolbarHandle {
 }
 
 interface BranchToolbarProps {
-  layout?: "composer" | "panel";
+  layout?: "composer" | "panel" | "draft-home";
   panelSection?: "all" | "workspace" | "branch";
   forceNewWorktree?: boolean;
   ref?: Ref<BranchToolbarHandle>;
@@ -155,7 +162,7 @@ function showWorkspaceContextMenu(event: ReactMouseEvent, workspacePath: string)
 }
 
 interface RunContextSelectorProps {
-  displayMode?: "toolbar" | "panel";
+  displayMode?: "toolbar" | "panel" | "draft-home";
   workspaceRoot?: string;
   forceNewWorktree: boolean;
   /** False when the folder has no repository a worktree could come from. */
@@ -224,6 +231,7 @@ const RunContextSelector = memo(function RunContextSelector({
         ? resolveEnvModeLabel("worktree", m)
         : resolveCurrentWorkspaceLabel(activeWorktreePath, m);
   const isPanel = displayMode === "panel";
+  const isDraftHome = displayMode === "draft-home";
   const workspaceModesLocked = envModeLocked || !offersWorkspaceModes;
   const isLocked = envLocked || (workspaceModesLocked && (!isPanel || !showEnvironmentPicker));
   const workspacePath =
@@ -273,10 +281,18 @@ const RunContextSelector = memo(function RunContextSelector({
     </Tooltip>
   );
   const icon = showEnvironmentIndicator ? environmentIcon : workspaceIcon;
-  const triggerContent = (
+  const triggerContent = isDraftHome ? (
+    <>
+      <WorkspaceIcon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+      <span className="max-w-56 truncate">
+        {gt("Workspace: {workspace}", { workspace: workspaceLabel })}
+      </span>
+      <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
+    </>
+  ) : (
     <>
       {icon}
-      <ComposerContextLabel displayMode={displayMode}>
+      <ComposerContextLabel displayMode={isPanel ? "panel" : "toolbar"}>
         {autoEnvironmentLabel ??
           (showEnvironmentIndicator ? (activeEnvironment?.label ?? gt("Run on")) : workspaceLabel)}
       </ComposerContextLabel>
@@ -285,7 +301,7 @@ const RunContextSelector = memo(function RunContextSelector({
     </>
   );
 
-  if (isLocked) {
+  if (isLocked && !isDraftHome) {
     return (
       <span
         className={cn(
@@ -313,8 +329,24 @@ const RunContextSelector = memo(function RunContextSelector({
   return (
     <Menu>
       <MenuTrigger
-        render={isPanel ? <ThreadDetailsControl part="select" /> : <ComposerControl size="xs" />}
-        className={isPanel ? undefined : "min-w-0 max-w-[48%] flex-initial justify-start"}
+        render={
+          isDraftHome ? (
+            <button type="button" />
+          ) : isPanel ? (
+            <ThreadDetailsControl part="select" />
+          ) : (
+            <ComposerControl size="xs" />
+          )
+        }
+        className={
+          isDraftHome
+            ? "inline-flex min-w-0 items-center disabled:pointer-events-none"
+            : isPanel
+              ? undefined
+              : "min-w-0 max-w-[48%] flex-initial justify-start"
+        }
+        disabled={isDraftHome ? isLocked || forceNewWorktree : undefined}
+        data-draft-workspace-mode={isDraftHome ? "" : undefined}
         onContextMenu={handleContextMenu}
         onMouseDownCapture={
           isPanel
@@ -344,7 +376,7 @@ const RunContextSelector = memo(function RunContextSelector({
         align="start"
         side={isPanel ? "bottom" : "top"}
         className={
-          isPanel
+          isPanel || isDraftHome
             ? "w-(--anchor-width)"
             : previousWorktreeLabel
               ? "w-[min(21rem,calc(100vw-2rem))]"
@@ -352,7 +384,8 @@ const RunContextSelector = memo(function RunContextSelector({
         }
         {...(!isPanel ? composerFloatingLayerProps : {})}
       >
-        {availableEnvironments &&
+        {!isDraftHome &&
+        availableEnvironments &&
         ((showEnvironmentPicker && onEnvironmentChange) || addTargets.length > 0) ? (
           <>
             <MenuGroup>
@@ -745,32 +778,80 @@ export const BranchToolbar = memo(function BranchToolbar({
     !envModeLocked &&
     (activeProject.trackedFolders?.length ?? 0) > 0;
 
+  const runContextProps = {
+    workspaceRoot: activeProject.workspaceRoot,
+    forceNewWorktree,
+    offersWorkspaceModes: showGitControls,
+    autoEnvironmentLabel,
+    onAutoEnvironment,
+    envLocked,
+    envModeLocked,
+    environmentId,
+    availableEnvironments,
+    showEnvironmentPicker,
+    onEnvironmentChange,
+    effectiveEnvMode,
+    activeWorktreePath,
+    onEnvModeChange,
+    previousWorktreeLabel,
+    previousWorktreeBranch: previousWorktreeSeed?.branch ?? null,
+    onUsePreviousWorktree,
+    addTargets,
+    onAddToMachine,
+  };
+
+  if (layout === "draft-home") {
+    return (
+      <>
+        <RunContextSelector
+          {...runContextProps}
+          displayMode="draft-home"
+          showEnvironmentIndicator={false}
+        />
+        {startsNewWorktree ? (
+          <>
+            {showBranchControls ? (
+              <BranchToolbarBranchSelector
+                displayMode="draft-home"
+                forceNewWorktree={forceNewWorktree}
+                ref={branchSelectorRef}
+                environmentId={environmentId}
+                threadId={threadId}
+                {...(draftId ? { draftId } : {})}
+                envLocked={envLocked}
+                effectiveEnvModeOverride={effectiveEnvMode}
+                startFromOrigin={startFromOrigin}
+                onStartFromOriginChange={onStartFromOriginChange}
+                {...(onComposerFocusRequest ? { onComposerFocusRequest } : {})}
+              />
+            ) : (
+              <WorktreeRepositoriesControl
+                project={activeProject}
+                draftTarget={draftId ?? threadRef}
+                offersBaseBranch
+                draftHome
+              />
+            )}
+            <span
+              data-draft-worktree-hint
+              className="pointer-events-none absolute inset-x-0 top-full mt-1.5 text-center text-xs text-muted-foreground/70"
+            >
+              <T>A separate branch is created when you send the first message</T>
+            </span>
+          </>
+        ) : null}
+      </>
+    );
+  }
+
   if (layout === "panel") {
     return (
       <div className="flex w-full flex-col" data-thread-panel-run-context>
         {panelSection !== "branch" ? (
           <RunContextSelector
+            {...runContextProps}
             displayMode="panel"
-            workspaceRoot={activeProject.workspaceRoot}
-            forceNewWorktree={forceNewWorktree}
-            offersWorkspaceModes={showGitControls}
-            autoEnvironmentLabel={autoEnvironmentLabel}
-            onAutoEnvironment={onAutoEnvironment}
-            envLocked={envLocked}
-            envModeLocked={envModeLocked}
-            environmentId={environmentId}
-            availableEnvironments={availableEnvironments}
-            showEnvironmentPicker={showEnvironmentPicker}
             showEnvironmentIndicator={activeEnvironmentOption !== null}
-            onEnvironmentChange={onEnvironmentChange}
-            effectiveEnvMode={effectiveEnvMode}
-            activeWorktreePath={activeWorktreePath}
-            onEnvModeChange={onEnvModeChange}
-            previousWorktreeLabel={previousWorktreeLabel}
-            previousWorktreeBranch={previousWorktreeSeed?.branch ?? null}
-            onUsePreviousWorktree={onUsePreviousWorktree}
-            addTargets={addTargets}
-            onAddToMachine={onAddToMachine}
           />
         ) : null}
         {panelSection !== "workspace" ? (
@@ -803,25 +884,8 @@ export const BranchToolbar = memo(function BranchToolbar({
       {showGitControls ? (
         <div className="contents @xl/composer-surface:hidden">
           <RunContextSelector
-            forceNewWorktree={forceNewWorktree}
-            offersWorkspaceModes={showGitControls}
-            autoEnvironmentLabel={autoEnvironmentLabel}
-            onAutoEnvironment={onAutoEnvironment}
-            envLocked={envLocked}
-            envModeLocked={envModeLocked}
-            environmentId={environmentId}
-            availableEnvironments={availableEnvironments}
-            showEnvironmentPicker={showEnvironmentPicker}
+            {...runContextProps}
             showEnvironmentIndicator={showEnvironmentIndicator}
-            onEnvironmentChange={onEnvironmentChange}
-            effectiveEnvMode={effectiveEnvMode}
-            activeWorktreePath={activeWorktreePath}
-            onEnvModeChange={onEnvModeChange}
-            previousWorktreeLabel={previousWorktreeLabel}
-            previousWorktreeBranch={previousWorktreeSeed?.branch ?? null}
-            onUsePreviousWorktree={onUsePreviousWorktree}
-            addTargets={addTargets}
-            onAddToMachine={onAddToMachine}
           />
         </div>
       ) : null}

@@ -1761,6 +1761,9 @@ export const layer: Layer.Layer<
                 modelSelection: run.modelSelection,
                 runtimePolicy: resolvedRuntimePolicy,
                 importedNativeSession,
+                previousTurnFailed: projection.providerTurns.some(
+                  (turn) => turn.providerThreadId === providerThread.id && turn.status === "failed",
+                ),
               }),
         );
         if (resumed._tag === "Success") {

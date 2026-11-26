@@ -3,7 +3,7 @@ import {
   type WorktreeRepositoryChoice,
 } from "@t3tools/client-runtime/state/thread-repositories";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
-import { FolderGitIcon } from "lucide-react";
+import { ChevronDownIcon, FolderGitIcon, GitBranchIcon } from "lucide-react";
 import { T, useGT, useMessages } from "gt-react";
 import { memo, useState } from "react";
 
@@ -52,6 +52,7 @@ export const WorktreeRepositoriesControl = memo(function WorktreeRepositoriesCon
   draftTarget: ComposerThreadTarget;
   /** A plain project folder has no branch picker of its own, so the base branch is named here. */
   offersBaseBranch: boolean;
+  draftHome?: boolean;
 }) {
   const baseBranch = useWorktreeBaseBranch(props.project);
   const composerFloatingLayerProps = useComposerMenuProps();
@@ -83,21 +84,43 @@ export const WorktreeRepositoriesControl = memo(function WorktreeRepositoriesCon
 
   return (
     <Menu onOpenChange={(open) => (open ? undefined : setFilter(""))}>
-      <MenuTrigger
-        render={<ComposerControl size="xs" />}
-        className={cn(
-          "min-w-0 flex-initial justify-start",
-          selection.needsChoice && "text-warning-foreground dark:text-warning-foreground",
-        )}
-        aria-label={gt("Repositories in the new worktree: {selection}", {
-          selection: selection.label,
-        })}
-        data-composer-context-control
+      {props.draftHome ? (
+        <MenuTrigger
+          render={<button type="button" />}
+          className="inline-flex min-w-0 items-center"
+          data-composer-context-control
+          data-draft-worktree-base
+        >
+          <GitBranchIcon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+          <span className="max-w-56 truncate">
+            {baseBranch
+              ? gt("From {branch}", { branch: baseBranch })
+              : gt("Each repository's default branch")}
+          </span>
+          <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
+        </MenuTrigger>
+      ) : (
+        <MenuTrigger
+          render={<ComposerControl size="xs" />}
+          className={cn(
+            "min-w-0 flex-initial justify-start",
+            selection.needsChoice && "text-warning-foreground dark:text-warning-foreground",
+          )}
+          aria-label={gt("Repositories in the new worktree: {selection}", {
+            selection: selection.label,
+          })}
+          data-composer-context-control
+        >
+          <FolderGitIcon className="size-3 shrink-0" aria-hidden />
+          <ComposerContextLabel>{selection.label}</ComposerContextLabel>
+        </MenuTrigger>
+      )}
+      <MenuPopup
+        align="start"
+        side="top"
+        className={props.draftHome ? "w-66" : undefined}
+        {...composerFloatingLayerProps}
       >
-        <FolderGitIcon className="size-3 shrink-0" aria-hidden />
-        <ComposerContextLabel>{selection.label}</ComposerContextLabel>
-      </MenuTrigger>
-      <MenuPopup align="start" side="top" {...composerFloatingLayerProps}>
         {choices.length > FILTER_ABOVE_CHOICES ? (
           <MenuSearchInput
             autoFocus

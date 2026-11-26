@@ -2841,10 +2841,12 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
           ),
         }),
     appId: platform === "win" ? STARDUST_WINDOWS_BRAND.appId : DESKTOP_APP_ID,
-    productName: platform === "win" ? STARDUST_WINDOWS_BRAND.displayName : resolveDesktopProductName(version),
-    artifactName: platform === "win"
-      ? "Stardust-v${version}-Windows-${arch}-Setup.${ext}"
-      : "T3-Code-${version}-${arch}.${ext}",
+    productName:
+      platform === "win" ? STARDUST_WINDOWS_BRAND.displayName : resolveDesktopProductName(version),
+    artifactName:
+      platform === "win"
+        ? "Stardust-v${version}-Windows-${arch}-Setup.${ext}"
+        : "T3-Code-${version}-${arch}.${ext}",
     ...(platform === "win" ? { copyright: STARDUST_WINDOWS_BRAND.publisher } : {}),
     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
     files: [
@@ -3860,11 +3862,12 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
   }
 
   // Stardust: keep the production web brand under the nightly-named native shell.
-  const webAssetBrandOverride = yield* Config.String("T3CODE_DESKTOP_WEB_ASSET_BRAND").pipe(Config.option);
-  const webAssetBrand: WebAssetBrand =
-    Option.contains(webAssetBrandOverride, "production")
-      ? "production"
-      : resolveDesktopWebAssetBrand(appVersion);
+  const webAssetBrandOverride = yield* Config.String("T3CODE_DESKTOP_WEB_ASSET_BRAND").pipe(
+    Config.option,
+  );
+  const webAssetBrand: WebAssetBrand = Option.contains(webAssetBrandOverride, "production")
+    ? "production"
+    : resolveDesktopWebAssetBrand(appVersion);
   yield* applyWebBrandAssets(webAssetBrand, "apps/server/dist/client");
   yield* Effect.log(`[desktop-artifact] Applied ${webAssetBrand} web client branding.`);
   yield* validateBundledClientAssets(path.dirname(bundledClientEntry));

@@ -1007,14 +1007,6 @@ function ConnectionsSettingsContent({
   };
 
   const renderWslRow = () => {
-    if (platformProfile.isWindowsDesktop && canManageLocalBackend) {
-      return (
-        <SettingsRow
-          {...searchableSetting("wsl-backend")}
-          description={uiText("WSL is currently unavailable on Windows.")}
-        />
-      );
-    }
     if (!desktopWslState) {
       if (
         isWslSettingsRowVisible({ state: null, error: desktopWslError }) &&
@@ -1041,7 +1033,14 @@ function ConnectionsSettingsContent({
       return null;
     }
     if (!isWslSettingsRowVisible({ state: desktopWslState, error: desktopWslError })) {
-      return null;
+      // Builds without the WSL runtime say so; ones that ship it, or that hold a WSL
+      // preference to clear, fall through to the real controls below.
+      return platformProfile.isWindowsDesktop && canManageLocalBackend ? (
+        <SettingsRow
+          {...searchableSetting("wsl-backend")}
+          description={uiText("WSL is currently unavailable on Windows.")}
+        />
+      ) : null;
     }
     if (!desktopWslState.available) {
       return (

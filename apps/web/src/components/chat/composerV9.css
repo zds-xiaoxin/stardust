@@ -1364,6 +1364,9 @@ html:root [data-slot="popover-popup"][data-session-stats-popup] > [data-slot="po
 [data-v10-home-chips] [data-draft-workspace-notice] button[data-popup-open] {
   background: var(--v9-fill, rgba(118, 118, 128, 0.095));
 }
+[data-v10-home-chips]:has(button[data-popup-open]) [data-draft-worktree-hint] {
+  visibility: hidden;
+}
 [data-v10-home-chips] [data-draft-workspace-notice] button:active {
   transform: scale(0.97);
 }

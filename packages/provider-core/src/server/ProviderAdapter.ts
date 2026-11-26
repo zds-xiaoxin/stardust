@@ -800,6 +800,8 @@ export interface ProviderAdapterV2SessionRuntime {
     readonly runtimePolicy?: ProviderAdapterV2RuntimePolicy;
     /** The native session is the only copy of the thread's imported history: fail when it is gone. */
     readonly importedNativeSession?: boolean;
+    /** A failed previous turn may have ended before the provider created its transcript. */
+    readonly previousTurnFailed?: boolean;
   }) => Effect.Effect<OrchestrationV2ProviderThread, ProviderAdapterV2Error>;
   readonly prepareCodexSharingRetry?: (input: {
     readonly providerThread: OrchestrationV2ProviderThread;

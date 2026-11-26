@@ -1,18 +1,37 @@
 import { isMacPlatform } from "@t3tools/shared/keybindings";
 import { isElectron } from "~/env";
 
-const platform = typeof navigator === "undefined" ? "" : navigator.platform;
-const id = isMacPlatform(platform) ? "mac" : /^win/i.test(platform) ? "windows" : "linux";
-const isWindowsDesktop = isElectron && id === "windows";
+type PlatformId = "mac" | "windows" | "linux";
 
+function currentPlatform(): string {
+  return typeof navigator === "undefined" ? "" : navigator.platform;
+}
+
+function platformId(platform: string): PlatformId {
+  return isMacPlatform(platform) ? "mac" : /^win/i.test(platform) ? "windows" : "linux";
+}
+
+// Read on access rather than once at import, so code and tests that consult navigator.platform agree.
 export const platformProfile = {
-  id,
-  platform,
-  modLabel: id === "mac" ? "⌘" : "Ctrl",
-  isWindowsDesktop,
-  interfaceStyle: isWindowsDesktop ? "windows" : "default",
-  windowMaterial: isWindowsDesktop && window.stardustWindowMica ? "mica" : "solid",
-} as const;
+  get platform(): string {
+    return currentPlatform();
+  },
+  get id(): PlatformId {
+    return platformId(currentPlatform());
+  },
+  get modLabel(): "⌘" | "Ctrl" {
+    return this.id === "mac" ? "⌘" : "Ctrl";
+  },
+  get isWindowsDesktop(): boolean {
+    return isElectron && this.id === "windows";
+  },
+  get interfaceStyle(): "windows" | "default" {
+    return this.isWindowsDesktop ? "windows" : "default";
+  },
+  get windowMaterial(): "mica" | "solid" {
+    return this.isWindowsDesktop && window.stardustWindowMica ? "mica" : "solid";
+  },
+};
 
 export function applyPlatformProfile(root: HTMLElement): void {
   root.dataset.platform = platformProfile.id;

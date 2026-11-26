@@ -193,7 +193,7 @@ export const ProviderStatusBanner = memo(function ProviderStatusBanner({
     incompatible?.status !== "broken" && (status.status === "warning" || incompatible !== null);
 
   return (
-    <div className="pointer-events-auto mx-auto w-fit max-w-[calc(100%-2rem)] pt-3">
+    <div className="pointer-events-auto mx-auto w-fit max-w-[min(calc(100%-2rem),var(--chat-banner-max-width,100%))] pt-3">
       <Alert
         variant={isWarning ? "warning" : "error"}
         role={incompatible && incompatible.status !== "broken" ? "status" : "alert"}

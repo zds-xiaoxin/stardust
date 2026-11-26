@@ -1,3 +1,4 @@
+import { Profiler } from "react";
 import { limitSlotCandidates } from "./UsageLimitSlots";
 import { providerClients } from "../settings/providerDriverMeta";
 import { LIMIT_SLOTS_KEY, LimitSlotsToggle, UsageLimitSlots } from "./UsageLimitSlots";
@@ -5,7 +6,7 @@ import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { ProviderDriverKind } from "@t3tools/contracts";
 import { collectLimitPools, type LimitAccount } from "@t3tools/shared/usageLimits";
-import { render } from "../../../test/render";
+import { act, render } from "../../../test/render";
 import { testUiLocale } from "../../../test/uiLocale";
 import { applyThemePalette } from "../../themePalette";
 import { UsageLimitRings } from "./UsageLimitRings";
@@ -18,6 +19,7 @@ import { analysisFixture, analysisHours } from "./usageAnalysis.fixture";
 import { mergeUsageEnvironments, tokenPeriodTotals } from "./usageAnalysis";
 import "~/index.css";
 import "./usagePresentation.css";
+import "./limitsV9.css";
 function theme() {
   const root = document.documentElement,
     previous = root.getAttribute("style"),
@@ -62,8 +64,7 @@ function pools() {
 }
 it("aligns four quota-card sections and locates reset dots at actual instants", async () => {
   using _theme = theme();
-  const data = pools(),
-    highlight = vi.fn();
+  const data = pools();
   await using screen = await render(
     <div style={{ width: 1000 }}>
       <div data-usage-limit-grid>
@@ -75,7 +76,7 @@ it("aligns four quota-card sections and locates reset dots at actual instants", 
           </section>
         ))}
       </div>
-      <UsageResetTimeline pools={data} now={now} onHighlight={highlight} />
+      <UsageResetTimeline pools={data} now={now} />
     </div>,
   );
   const cards = [...screen.container.querySelectorAll<HTMLElement>(".usage-limit-ring-card")],
@@ -99,12 +100,86 @@ it("aligns four quota-card sections and locates reset dots at actual instants", 
       5,
     );
   }
-  const lane = screen.container.querySelector<SVGGElement>("[data-timeline-lane]")!;
-  lane.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-  await userEvent.hover(screen.getByRole("button", { name: /Codex ·/ }));
-  expect(highlight).toHaveBeenCalledWith("codex");
   expect(screen.container.querySelector("[data-timeline-gap]")).not.toBeNull();
 });
+
+it.each([false, true])("opens reset details on demand in the v9=%s layout", async (v9) => {
+  using _theme = theme();
+  using _locale = testUiLocale("zh-CN");
+  const commit = vi.fn();
+  const data = pools();
+  await using screen = await render(
+    <div data-lv9-root={v9 ? "" : undefined} style={{ width: 760 }}>
+      <button id="usage-limit-codex" type="button">
+        上方卡片
+      </button>
+      <Profiler id="resets" onRender={commit}>
+        <UsageResetTimeline pools={data} now={now} v9={v9} />
+      </Profiler>
+      <button type="button">时间线之外</button>
+    </div>,
+  );
+  const chart = screen.container.querySelector("[data-reset-calendar]")!;
+  const rows = [...chart.querySelectorAll<SVGGElement>("[data-timeline-lane]")];
+  const popover = () => chart.querySelector<HTMLElement>("[data-timeline-detail]");
+  const lane = screen.getByRole("button", { name: /Codex ·/ });
+  const codex = chart.querySelector<SVGGElement>('[data-timeline-lane="codex"]')!;
+  const target = screen.container.querySelector<HTMLElement>("#usage-limit-codex")!;
+  const scroll = vi.spyOn(target, "scrollIntoView").mockImplementation(() => {});
+  const markup = chart.innerHTML;
+  commit.mockClear();
+  for (const row of rows) {
+    const rect = row.querySelector("[data-timeline-row-hit]")!.getBoundingClientRect();
+    // The middle of the row's vertical padding is now a hit target as well.
+    const padding = document.elementFromPoint(rect.left + rect.width / 2, rect.top + 3);
+    expect(padding?.closest("[data-timeline-lane]")).toBe(row);
+    await userEvent.hover(page.elementLocator(row));
+    await act(() => {
+      row.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+      padding!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      padding!.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    });
+  }
+  expect(chart.innerHTML).toBe(markup);
+  expect(commit).not.toHaveBeenCalled();
+  expect(chart.querySelector("[data-usage-readout]")!.textContent).toBe(
+    "点一行看详情，再点一次或按 Esc 收起",
+  );
+
+  await userEvent.click(lane);
+  await expect.element(lane).toHaveAttribute("aria-expanded", "true");
+  expect(popover()?.textContent).toContain("20% 剩余");
+  expect(popover()?.querySelector(".usage-timeline-detail-gap")?.textContent).toMatch(
+    /约 .*用不了/,
+  );
+  expect(
+    codex.querySelector("[data-timeline-row-hit]")!.getBoundingClientRect().bottom,
+  ).toBeLessThanOrEqual(popover()!.getBoundingClientRect().top);
+  expect(getComputedStyle(popover()!).animationDuration).toBe("0.12s");
+  expect(scroll).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "定位到上面的卡片 ↑" }));
+  expect(scroll).toHaveBeenCalledExactlyOnceWith({ behavior: "smooth", block: "nearest" });
+  await userEvent.keyboard("{Escape}");
+  await expect.element(lane).toHaveFocus();
+  expect(popover()).toBeNull();
+
+  await userEvent.keyboard("{Enter}");
+  await expect.element(lane).toHaveAttribute("aria-expanded", "true");
+  await userEvent.tab();
+  await expect.element(screen.getByRole("button", { name: "定位到上面的卡片 ↑" })).toHaveFocus();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(lane).toHaveFocus();
+  await userEvent.keyboard(" ");
+  await expect.element(lane).toHaveAttribute("aria-expanded", "true");
+  await userEvent.click(lane);
+  await expect.element(lane).toHaveAttribute("aria-expanded", "false");
+
+  await userEvent.click(lane);
+  await userEvent.click(screen.getByRole("button", { name: "时间线之外" }));
+  await expect.element(lane).toHaveAttribute("aria-expanded", "false");
+  expect(popover()).toBeNull();
+});
+
 it("keeps the token readout above hovered bars without fading other bars", async () => {
   using _locale = testUiLocale("zh-CN");
   using _theme = theme();

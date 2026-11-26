@@ -77,7 +77,8 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
       if (!active) return;
       const r = root.getBoundingClientRect(),
         b = active.getBoundingClientRect();
-      thumb.style.transform = `translateX(${b.left - r.left}px)`;
+      // The thumb is positioned inside the capsule's border.
+      thumb.style.transform = `translateX(${b.left - r.left - root.clientLeft}px)`;
       thumb.style.width = `${b.width}px`;
     };
     const click = (event: MouseEvent) => {
@@ -200,6 +201,7 @@ export const RightPanelMaximizeControl = memo(function RightPanelMaximizeControl
         render={
           <Toggle
             className="shrink-0 [-webkit-app-region:no-drag]"
+            data-right-panel-maximize=""
             pressed={maximized}
             onPressedChange={onToggle}
             aria-label={label}
@@ -266,12 +268,39 @@ export function WorkspaceTitlebarControls(props: {
     return () => animation.cancel();
   }, [rightPanelOpen, maximized]);
 
+  // Headers reserve this width (and keep it out of the drag region) under the fixed controls,
+  // which grow when the maximize toggle appears.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- mirrors the mounted controls' DOM width into a root CSS variable and clears it on unmount.
+  useLayoutEffect(() => {
+    const element = controlsRef.current;
+    if (!element) return;
+    const style = element.ownerDocument.documentElement.style;
+    const property = "--workspace-titlebar-controls-width";
+    let written: string | null = null;
+    const update = () => {
+      const width = Math.ceil(element.getBoundingClientRect().width);
+      // Hidden (mobile sheet) controls measure 0; keep the last real width.
+      if (width === 0) return;
+      written = `${width}px`;
+      style.setProperty(property, written);
+    };
+    update();
+    const stopResize = observeResize(element, update);
+    return () => {
+      stopResize();
+      // Leave a value another mounted instance wrote after this one.
+      if (written !== null && style.getPropertyValue(property) === written) {
+        style.removeProperty(property);
+      }
+    };
+  }, []);
+
   const mobileSidebarSheetMounted = useMobileSidebarSheetMounted();
   return (
     <div
       ref={controlsRef}
       className={cn(
-        "pointer-events-none fixed top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] z-50 mr-px flex h-[var(--workspace-topbar-height)] items-center gap-1 [-webkit-app-region:no-drag]",
+        "pointer-events-none fixed top-[var(--workspace-fixed-controls-top,var(--workspace-controls-top))] right-[var(--workspace-controls-right)] z-50 mr-px flex h-[var(--workspace-topbar-height)] items-center gap-1 [-webkit-app-region:no-drag]",
         mobileSidebarSheetMounted && "hidden",
       )}
       data-workspace-titlebar-controls

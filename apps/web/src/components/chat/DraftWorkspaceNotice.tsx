@@ -55,12 +55,14 @@ export function DraftWorkspaceNotice({
   project,
   workspacePath,
   canChange,
+  workspaceControl,
   environmentControl,
 }: {
   draftId: DraftId;
   project: Project;
   workspacePath: string;
   canChange: () => boolean;
+  workspaceControl?: ReactNode;
   environmentControl?: ReactNode;
 }) {
   const uiText = useUiText();
@@ -359,6 +361,7 @@ export function DraftWorkspaceNotice({
           )}
         </PopoverPopup>
       </Popover>
+      {workspaceControl}
       {environmentControl}
     </div>
   );

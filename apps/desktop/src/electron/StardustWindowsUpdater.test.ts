@@ -14,7 +14,7 @@ const installerName = "T3-Stardust-v1.3.1-Windows-x64-Setup.exe";
 const bytes = "fixture installer content";
 const sha256 = NodeCrypto.createHash("sha256").update(bytes).digest("hex");
 
-function withFixture(tamper: boolean) {
+function withFixture(tamper: boolean, launch: () => Promise<void> = async () => {}) {
   return Effect.acquireRelease(
     Effect.sync(() => {
       const localAppData = NodeFS.mkdtempSync(
@@ -54,6 +54,7 @@ function withFixture(tamper: boolean) {
         onWillQuit: () => () => {},
         spawnInstaller: (script) => {
           scripts.push(script);
+          return launch();
         },
       });
       return { ...fixture, localAppData, scripts, requests, quitCount: () => quitCount };
@@ -104,5 +105,25 @@ it.effect("rejects tampered bytes and leaves no Windows installer to run", () =>
     ).toBe(true);
     expect(fixture.scripts).toEqual([]);
     expect(fixture.quitCount()).toBe(0);
+  }),
+);
+
+it.effect("stays open and can retry when the installer helper fails to start", () =>
+  Effect.gen(function* () {
+    let attempts = 0;
+    const fixture = yield* withFixture(false, async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("spawn EACCES");
+    });
+    yield* fixture.service.checkForUpdates;
+    yield* fixture.service.downloadUpdate;
+    const install = fixture.service
+      .quitAndInstall({ isSilent: true, isForceRunAfter: true })
+      .pipe(Effect.exit);
+    expect(Exit.isFailure(yield* install)).toBe(true);
+    expect(fixture.quitCount()).toBe(0);
+    expect(Exit.isSuccess(yield* install)).toBe(true);
+    expect(fixture.quitCount()).toBe(1);
+    expect(fixture.scripts).toHaveLength(2);
   }),
 );

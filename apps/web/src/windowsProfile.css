@@ -5,6 +5,11 @@ html:root[data-platform="windows"] {
   --font-mono: "Cascadia Mono", Consolas, monospace;
 }
 
+html:root[data-interface-style="windows"] {
+  /* The native sidebar has no floating inset; SidebarChrome offsets the brand by this value. */
+  --liquid-sidebar-inset: 0px;
+}
+
 html:root[data-interface-style="windows"] [data-slot="sidebar-container"][data-app-sidebar] {
   padding: 0;
 }
@@ -18,7 +23,7 @@ html:root[data-interface-style="windows"] [data-slot="sidebar-inset"] {
   box-shadow: -1px 0 0 var(--border);
 }
 
-@media (prefers-reduced-transparency: no-preference) {
+@media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
   html:root[data-interface-style="windows"][data-window-material="mica"],
   html:root[data-interface-style="windows"][data-window-material="mica"] body,
   html:root[data-interface-style="windows"][data-window-material="mica"]
@@ -32,10 +37,75 @@ html:root[data-interface-style="windows"] [data-slot="sidebar-inset"] {
   }
 }
 
-html:root[data-platform="windows"] [class*="quota-topbar"] {
+/* The doubled attribute outranks apple.css's dark reduced-transparency capsule fill. */
+html:root[data-platform="windows"] [data-quota-topbar][data-quota-topbar],
+html:root[data-interface-style="windows"]:is([data-theme-id="apple"], [data-theme-id="stardust"])
+  [data-panel-layout-controls] {
   background: var(--background);
+  border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+/* The Windows caption strip is 40px: quota chips and panel toggles share one 32px row
+   in the capsule themes, centred on the native minimize/maximize/close buttons. */
+html:root[data-interface-style="windows"]:is([data-theme-id="apple"], [data-theme-id="stardust"])
+  [data-quota-topbar],
+html:root[data-interface-style="windows"]:is([data-theme-id="apple"], [data-theme-id="stardust"])
+  [data-panel-layout-controls] {
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  align-self: center;
+}
+
+html:root[data-interface-style="windows"]:is([data-theme-id="apple"], [data-theme-id="stardust"])
+  [data-quota-topbar] {
+  padding-block: 1px;
+}
+
+html:root[data-interface-style="windows"]:is([data-theme-id="apple"], [data-theme-id="stardust"])
+  [data-panel-layout-controls] {
+  padding: 2px;
+  gap: 2px;
+}
+
+html:root[data-interface-style="windows"]:is([data-theme-id="apple"], [data-theme-id="stardust"])
+  [data-panel-layout-controls]
+  [data-slot="toggle"],
+html:root[data-interface-style="windows"]:is([data-theme-id="apple"], [data-theme-id="stardust"])
+  [data-panel-layout-controls]
+  [data-layout-thumb],
+html:root[data-interface-style="windows"]:is([data-theme-id="apple"], [data-theme-id="stardust"])
+  [data-quota-topbar]
+  :is([data-quota-id], [data-slot="popover-trigger"]),
+html:root[data-interface-style="windows"] [data-right-panel-maximize] {
+  border-radius: 4px;
+}
+
+/* The quota menu button (shown when no chips are pinned) fits the 28px row inside the capsule. */
+html:root[data-interface-style="windows"]:is([data-theme-id="apple"], [data-theme-id="stardust"])
+  [data-quota-topbar]
+  [data-slot="popover-trigger"] {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+}
+
+/* 1px border + 2px padding + 26px toggles = 32px. */
+html:root[data-interface-style="windows"]:is([data-theme-id="apple"], [data-theme-id="stardust"])
+  [data-panel-layout-controls]
+  [data-slot="toggle"] {
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+}
+
+html:root[data-interface-style="windows"]:is([data-theme-id="apple"], [data-theme-id="stardust"])
+  [data-panel-layout-controls]
+  [data-layout-thumb] {
+  top: 2px;
+  height: 26px;
 }

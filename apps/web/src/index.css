@@ -160,6 +160,9 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --workspace-controls-right: calc(env(safe-area-inset-right) + 0.75rem);
   --workspace-native-controls-inset: 0px;
   --workspace-titlebar-control-size: 1.75rem;
+  /* Room headers leave under the fixed top-right controls; .wco measures it instead. */
+  --workspace-titlebar-controls-reserve: 7rem;
+  --workspace-titlebar-controls-shield: 7rem;
   --workspace-titlebar-control-gap: 0.75rem;
   --workspace-titlebar-scroll-fade-height: 1.5rem;
   --chat-content-max-width: 46rem;
@@ -187,16 +190,58 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 }
 
 .wco {
-  --native-titlebar-height: env(titlebar-area-height, 0px);
-  --workspace-topbar-height: max(40px, env(titlebar-area-height, 52px));
+  /* windowControlsOverlay.ts measures the caption (--wco-caption-*) in case the
+     titlebar-area env() values are missing; the larger reservation wins. */
+  --native-titlebar-height: max(env(titlebar-area-height, 0px), var(--wco-caption-height, 0px));
+  --workspace-topbar-height: max(
+    40px,
+    env(titlebar-area-height, 0px),
+    var(--wco-caption-height, 0px)
+  );
   --workspace-controls-top: env(titlebar-area-y, 0px);
-  --workspace-controls-left: calc(env(titlebar-area-x, 0px) + 0.75rem);
-  --workspace-controls-right: calc(
-    100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px) + 0.75rem
+  --workspace-controls-left: calc(
+    max(env(titlebar-area-x, 0px), var(--wco-caption-left, 0px)) + 0.75rem
   );
-  --workspace-native-controls-inset: calc(
-    100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px) + 0.75rem
+  --wco-caption-inset: max(
+    var(--wco-caption-right, 0px),
+    100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px)
   );
+  --workspace-controls-right: calc(var(--wco-caption-inset) + 0.75rem);
+  --workspace-native-controls-inset: calc(var(--wco-caption-inset) + 0.75rem);
+  /* Header room under the fixed controls follows their measured width (PanelLayoutControls.tsx),
+     which grows with the maximize toggle; the 1px matches their mr-px. */
+  --workspace-titlebar-controls-reserve: calc(
+    var(--workspace-titlebar-controls-width, 6rem) + 1rem
+  );
+  --workspace-titlebar-controls-shield: max(7rem, var(--workspace-titlebar-controls-width, 0px));
+  --workspace-titlebar-controls-placeholder: calc(
+    var(--workspace-titlebar-controls-width, 6rem) + 1px
+  );
+}
+
+/* AppKit slides its fullscreen chrome over WebContents, where Electron exposes no
+   reveal geometry. Scale the 32pt title bar like the 90pt traffic-light inset. */
+:root:has([data-macos-native-fullscreen]) {
+  --workspace-fullscreen-top-inset: calc(var(--desktop-window-controls-inset, 90px) * 32 / 90);
+}
+
+[data-macos-native-fullscreen] {
+  --workspace-fixed-controls-top: var(--workspace-fullscreen-top-inset);
+  padding-top: var(--workspace-fullscreen-top-inset);
+
+  > [data-slot="sidebar-inset"] {
+    height: 100%;
+  }
+
+  [data-slot="sidebar-container"][data-app-sidebar] {
+    top: var(--workspace-fullscreen-top-inset);
+    height: auto;
+  }
+}
+
+:root:has([data-macos-native-fullscreen])
+  [data-slot="sheet-viewport"]:has(> [data-sidebar="sidebar"], [data-preview-panel-mode="sheet"]) {
+  top: var(--workspace-fullscreen-top-inset);
 }
 
 /* The font tokens are declared outside the inline theme so utilities reference

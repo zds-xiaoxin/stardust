@@ -48,18 +48,55 @@ export function onWindowControlsOverlayGeometryChange(listener: () => void): () 
   };
 }
 
+// Three 46px caption buttons in DesktopWindow.ts's 40px strip, assumed until Windows reports them.
+const WINDOWS_CAPTION_FALLBACK = { left: 0, right: 138, bottom: 40 } as const;
+const CAPTION_PROPERTIES = ["--wco-caption-left", "--wco-caption-right", "--wco-caption-height"];
+
 export function syncDocumentWindowControlsOverlayClass(): () => void {
   if (typeof document === "undefined") {
     return () => {};
   }
 
   const overlay = getWindowControlsOverlay();
+  const root = document.documentElement;
+  // Caption geometry as distances from the window edges, which survive a resize unchanged.
+  let lastReported: { left: number; right: number; bottom: number } | null = null;
   const update = () => {
-    document.documentElement.classList.toggle(WCO_CLASS_NAME, overlay !== null && overlay.visible);
+    const visible = overlay !== null && overlay.visible;
+    root.classList.toggle(WCO_CLASS_NAME, visible);
+    if (!overlay) return;
+    // Measured caption geometry backs up the titlebar-area env() values, which Chromium can
+    // leave unset or zero for a frame or after a zoom change; without it the controls slide
+    // under the native minimize/maximize/close buttons. A hidden overlay (fullscreen) has none.
+    let caption: { left: number; right: number; bottom: number } | null = null;
+    if (visible) {
+      const rect = overlay.getTitlebarAreaRect();
+      if (rect.width > 0 && rect.height > 0) {
+        lastReported = {
+          left: Math.max(0, rect.left),
+          right: Math.max(0, window.innerWidth - rect.right),
+          bottom: rect.bottom,
+        };
+      }
+      caption =
+        lastReported ?? (platformProfile.id === "windows" ? WINDOWS_CAPTION_FALLBACK : null);
+    }
+    root.style.setProperty("--wco-caption-left", `${caption?.left ?? 0}px`);
+    root.style.setProperty("--wco-caption-right", `${caption?.right ?? 0}px`);
+    if (caption) root.style.setProperty("--wco-caption-height", `${caption.bottom}px`);
+    else root.style.removeProperty("--wco-caption-height");
   };
 
   update();
-  return onWindowControlsOverlayGeometryChange(update);
+  const stopGeometry = onWindowControlsOverlayGeometryChange(update);
+  if (!overlay) return stopGeometry;
+  window.addEventListener("resize", update);
+  return () => {
+    stopGeometry();
+    window.removeEventListener("resize", update);
+    root.classList.remove(WCO_CLASS_NAME);
+    for (const property of CAPTION_PROPERTIES) root.style.removeProperty(property);
+  };
 }
 
 function subscribeTitlebarArea(listener: () => void): () => void {

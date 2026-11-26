@@ -250,7 +250,8 @@ export function CommunityUpdateSettings({ versionRowId }: { versionRowId?: strin
               disabled={state.status === "checking" || phase === "downloading" || installing}
               onClick={() => {
                 void state.check(true);
-                if (canSelfUpdate && !platformProfile.isWindowsDesktop) void window.desktopBridge?.checkForUpdate();
+                if (canSelfUpdate && !platformProfile.isWindowsDesktop)
+                  void window.desktopBridge?.checkForUpdate();
               }}
             >
               {copy("Check for Updates")}

@@ -494,7 +494,8 @@ html:root:is([data-theme-id="apple"], [data-theme-id="stardust"]) {
   }
   [data-workspace-titlebar-controls] {
     gap: 8px;
-    min-height: 52px;
+    /* The topbar is 52px on macOS but follows the 40px native caption on Windows. */
+    min-height: var(--workspace-topbar-height);
   }
   [data-liquid-workspace-header],
   [data-liquid-chat-header] {

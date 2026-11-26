@@ -63,6 +63,20 @@ describe("startupDialogKey", () => {
     expect(startupDialogKey(`${trustDialog("no")}\n${trustDialog("yes")}`)).toBe("enter");
   });
 
+  it("confirms the current bypass dialog after the trust dialog's redraw", () => {
+    const bypass = [
+      "WARNING: Claude Code running in Bypass Permissions mode",
+      "❯ No, exit",
+      "  Yes, I accept",
+      "Enter to confirm · Esc to cancel",
+    ].join("\n");
+    const previousScreen = `${trustDialog("no")}\n No, exit\n❯ Yes, I trust this folder\n`;
+    expect(startupDialogKey(`${previousScreen}${bypass}`)).toBe("down");
+    expect(startupDialogKey(`${previousScreen}${bypass}\n No, exit\n❯ Yes, I accept`)).toBe(
+      "enter",
+    );
+  });
+
   it("keeps the default of other dialogs", () => {
     const mcpDialog = [
       "New MCP server found in this project: xcodebuildmcp",
@@ -71,6 +85,7 @@ describe("startupDialogKey", () => {
       "Enter to confirm · Esc to cancel",
     ].join("\n");
     expect(startupDialogKey(mcpDialog)).toBe("enter");
+    expect(startupDialogKey(`${trustDialog("yes")}\n${mcpDialog}`)).toBe("enter");
   });
 
   it("ignores screens without a dialog", () => {

@@ -411,6 +411,38 @@ it.layer(layerTest)("Antigravity provider snapshots", (it) => {
     }),
   );
 
+  it.effect("updates Auto availability when native permission modes change", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness();
+      yield* harness.initialize;
+      yield* harness.provider.onSessionStarted(started);
+      const supportedModes = harness.provider.snapshot.getSnapshot.pipe(
+        Effect.map((snapshot) => snapshot.supportedRuntimeModes),
+      );
+      const nativeMode = {
+        id: "mode",
+        name: "Session Mode",
+        category: "mode",
+        type: "select",
+        currentValue: "default",
+        options: [{ value: "default", name: "Default" }],
+      } satisfies EffectAcpSchema.SessionConfigOption;
+      const withoutAuto = ["approval-required", "auto-accept-edits", "full-access"];
+      const withAuto = ["approval-required", "auto-accept-edits", "auto", "full-access"];
+
+      yield* harness.provider.onConfigOptionsUpdated([
+        modelConfig,
+        { ...nativeMode, options: [...nativeMode.options, { value: "auto", name: "Auto" }] },
+      ]);
+      expect(yield* supportedModes).toEqual(withAuto);
+      yield* harness.provider.onConfigOptionsUpdated([modelConfig]);
+      expect(yield* supportedModes).toEqual(withAuto);
+      yield* harness.provider.onConfigOptionsUpdated([modelConfig, nativeMode]);
+      expect(yield* supportedModes).toEqual(withoutAuto);
+      expect(yield* Ref.get(harness.savedRuntimeModes)).toEqual([withAuto, withoutAuto]);
+    }),
+  );
+
   it.effect("publishes session metadata and native commands without another health probe", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();

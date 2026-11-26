@@ -99,9 +99,10 @@ export const make = Effect.gen(function* () {
         : `${environment.branding.baseName} ${environment.branding.stageLabel}`,
     );
     yield* electronApp.setAboutPanelOptions({
-      applicationName: environment.platform === "win32"
-        ? STARDUST_WINDOWS_BRAND.description
-        : environment.displayName,
+      applicationName:
+        environment.platform === "win32"
+          ? STARDUST_WINDOWS_BRAND.description
+          : environment.displayName,
       applicationVersion: environment.appVersion,
       version: Option.getOrElse(commitHash, () => "unknown"),
     });

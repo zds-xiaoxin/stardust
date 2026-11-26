@@ -366,7 +366,7 @@ describe("AntigravityAdapterV2 session open", () => {
 });
 
 describe("AntigravityAdapterV2 client file system", () => {
-  it.effect("serves confined reads and leaves edits to the agent's diff tools", () =>
+  it.effect("serves confined reads from tracked roots and leaves edits to the agent", () =>
     Effect.gen(function* () {
       const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const fileSystem = yield* FileSystem.FileSystem;
@@ -394,7 +394,11 @@ describe("AntigravityAdapterV2 client file system", () => {
               command: process.execPath,
               args: [mockAgentPath],
               cwd: input.cwd,
-              env: { T3_ACP_ANTIGRAVITY: "1", T3_ACP_REQUEST_LOG_PATH: requestLog },
+              env: {
+                T3_ACP_ANTIGRAVITY: "1",
+                T3_ACP_REQUEST_LOG_PATH: requestLog,
+                T3_ACP_SESSION_LIFECYCLE: "1",
+              },
             },
           }).pipe(
             Effect.provideService(SecureRandom.SecureRandom, crypto),
@@ -419,6 +423,11 @@ describe("AntigravityAdapterV2 client file system", () => {
       const outside = yield* fileSystem.makeTempDirectoryScoped({
         prefix: "t3-antigravity-outside-",
       });
+      const tracked = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-antigravity-tracked-",
+      });
+      const trackedFile = path.join(tracked, "README.md");
+      yield* fileSystem.writeFileString(trackedFile, "tracked");
       const outsideFile = path.join(outside, "secret.txt");
       yield* fileSystem.writeFileString(outsideFile, "secret");
       const attachment = path.join(host.paths.attachmentsDir, "pasted.txt");
@@ -429,6 +438,7 @@ describe("AntigravityAdapterV2 client file system", () => {
         runtimeMode: "full-access",
         interactionMode: "default",
         cwd: workspace,
+        workspace: { folders: [], extraRoots: [tracked] },
       });
       const modelSelection = { instanceId, model: "gemini-test-low" } as const;
       const session = yield* adapter.openSession({
@@ -455,8 +465,9 @@ describe("AntigravityAdapterV2 client file system", () => {
       const initialize = requests.find((request) => request.method === "initialize");
       // agy runs shell commands from its lexicographically first root, so attachments
       // must reach it through client reads, never as an extra workspace root.
-      assert.isUndefined(
+      assert.deepEqual(
         requests.find((request) => request.method === "session/new")?.params?.additionalDirectories,
+        [tracked],
       );
       assert.deepEqual(initialize?.params?.clientCapabilities?.fs, {
         readTextFile: true,
@@ -483,6 +494,11 @@ describe("AntigravityAdapterV2 client file system", () => {
         context("fs/read_text_file"),
       );
       assert.equal(sliced.content, "é中🙂");
+      const inTrackedRoot = yield* readTextFile(
+        { sessionId: "mock-session-1", path: trackedFile },
+        context("fs/read_text_file"),
+      );
+      assert.equal(inTrackedRoot.content, "tracked");
       yield* fileSystem.writeFileString(insidePath, "inside");
       for (const [name, bytes] of [
         ["image.png", new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
@@ -502,7 +518,7 @@ describe("AntigravityAdapterV2 client file system", () => {
         context("fs/read_text_file"),
       ).pipe(Effect.exit);
       assert.isTrue(Exit.isFailure(outsideRead));
-      const linkPath = path.join(workspace, "linked-secret.txt");
+      const linkPath = path.join(tracked, "linked-secret.txt");
       yield* fileSystem.symlink(outsideFile, linkPath);
       const linkedRead = yield* readTextFile(
         { sessionId: "mock-session-1", path: linkPath },
@@ -589,13 +605,18 @@ describe("AntigravityAdapterV2 workspace changes", () => {
       });
       const workspaceA = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-ag-a-" });
       const workspaceB = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-ag-b-" });
+      const trackedA = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-ag-tracked-a-" });
+      const trackedB = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-ag-tracked-b-" });
       yield* fileSystem.writeFileString(path.join(workspaceA, "a.txt"), "from a");
       yield* fileSystem.writeFileString(path.join(workspaceB, "b.txt"), "from b");
-      const policyFor = (cwd: string) =>
+      yield* fileSystem.writeFileString(path.join(trackedA, "a.txt"), "tracked a");
+      yield* fileSystem.writeFileString(path.join(trackedB, "b.txt"), "tracked b");
+      const policyFor = (cwd: string, tracked: string) =>
         ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
           runtimeMode: "full-access",
           interactionMode: "default",
           cwd,
+          workspace: { folders: [], extraRoots: [tracked] },
         });
       const threadId = ThreadId.make("thread-antigravity-workspace-change");
       const modelSelection = { instanceId, model: "gemini-test-low" } as const;
@@ -603,12 +624,12 @@ describe("AntigravityAdapterV2 workspace changes", () => {
         threadId,
         providerSessionId: ProviderSessionId.make("provider-session-antigravity-workspace-change"),
         modelSelection,
-        runtimePolicy: policyFor(workspaceA),
+        runtimePolicy: policyFor(workspaceA, trackedA),
       });
       const providerThread = yield* session.ensureThread({
         threadId,
         modelSelection,
-        runtimePolicy: policyFor(workspaceA),
+        runtimePolicy: policyFor(workspaceA, trackedA),
       });
       const now = yield* DateTime.now;
       yield* session
@@ -651,7 +672,7 @@ describe("AntigravityAdapterV2 workspace changes", () => {
             attachments: [document],
           },
           modelSelection,
-          runtimePolicy: policyFor(workspaceB),
+          runtimePolicy: policyFor(workspaceB, trackedB),
         })
         .pipe(Effect.forkScoped);
       yield* session.events.pipe(
@@ -686,6 +707,16 @@ describe("AntigravityAdapterV2 workspace changes", () => {
         context,
       ).pipe(Effect.exit);
       assert.isTrue(Exit.isFailure(fromA), "the previous workspace is no longer readable");
+      const fromTrackedB = yield* readTextFile(
+        { sessionId: "mock-session-1", path: path.join(trackedB, "b.txt") },
+        context,
+      );
+      assert.equal(fromTrackedB.content, "tracked b");
+      const fromTrackedA = yield* readTextFile(
+        { sessionId: "mock-session-1", path: path.join(trackedA, "a.txt") },
+        context,
+      ).pipe(Effect.exit);
+      assert.isTrue(Exit.isFailure(fromTrackedA), "a removed tracked root is no longer readable");
     }).pipe(Effect.provide(layerSession)),
   );
 });

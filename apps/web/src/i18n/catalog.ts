@@ -1,15 +1,18 @@
 // Adapted from ZhiweiXiao98/t3code b604575 (MIT). Application UI copy only.
 export const zhCN: Readonly<Record<string, string>> = {
   "Check GitHub Releases for Stardust updates.": "可在 GitHub 发布页查看星尘更新。",
-  "The latest release has no verifiable Windows x64 build.": "最新版本没有可校验的 Windows x64 安装包。",
+  "The latest release has no verifiable Windows x64 build.":
+    "最新版本没有可校验的 Windows x64 安装包。",
   "WSL and voice input are currently unavailable on Windows.": "Windows 暂不支持 WSL 和语音输入。",
   "WSL is currently unavailable on Windows.": "Windows 暂不支持 WSL。",
   "Stardust licenses": "星尘许可",
-  "Stardust’s MIT license, NOTICE, and third-party notices.": "星尘的 MIT 许可证、NOTICE 和第三方声明。",
+  "Stardust’s MIT license, NOTICE, and third-party notices.":
+    "星尘的 MIT 许可证、NOTICE 和第三方声明。",
   "Stardust background animation": "背景星尘动效",
-  "Animates the dark Stardust background while the window is active and plugged in.": "星尘深色模式在窗口活跃且接通电源时播放。",
+  "Animates the dark Stardust background while the window is active and plugged in.":
+    "星尘深色模式在窗口活跃且接通电源时播放。",
   "Extra high": "超高",
-  "Extreme": "极限",
+  Extreme: "极限",
   "Account {number}": "{number} 号账号",
   "Quota not reported": "未上报额度",
   "Gemini quota not reported": "Gemini 未上报额度",
@@ -345,7 +348,6 @@ export const zhCN: Readonly<Record<string, string>> = {
   "全部时段 · 合计": "全部时段 · 合计",
   这周的重置: "这周的重置",
   "圆点是重置时刻；斜纹是用完后等待重置的空档": "圆点是重置时刻；斜纹是用完后等待重置的空档",
-  "指一行看详情；点一行定位到上面的卡片": "指一行看详情；点一行定位到上面的卡片",
   未来七天额度重置时间轴: "未来七天额度重置时间轴",
   现在: "现在",
   "Map to a different model.": "请映射到其他模型。",
@@ -5502,8 +5504,6 @@ export const zhCN: Readonly<Record<string, string>> = {
   // oxlint-disable-next-line t3code/no-em-dash-copy -- Exact upstream strings are translation lookup keys.
   ", T3 Code needs Full Disk Access. Turn it on in System Settings, then come back to finish the import — you can revoke it again once the import is done.":
     "，星尘需要完全磁盘访问权限。请在系统设置中开启，然后返回完成导入，导入完成后可以再次关闭。",
-  ", Stardust needs Full Disk Access. Turn it on in System Settings, then come back to finish the import — you can revoke it again once the import is done.":
-    "，星尘需要完全磁盘访问权限。请在系统设置中开启，然后返回完成导入，导入完成后可以再次关闭。",
   "Full Disk Access": "完全磁盘访问权限",
   "Access is still required. Quit and reopen T3 Code if you just allowed it, then retry the import.":
     "仍需要访问权限。若刚刚允许，请退出并重新打开星尘，然后重试导入。",
@@ -9069,7 +9069,6 @@ export const zhCN: Readonly<Record<string, string>> = {
   "Resets this week": "这周的重置",
   "Dots show resets. Stripes show time without quota.":
     "圆点是重置时刻；斜纹是用完后等待重置的空档",
-  "Hover for details. Select a row to find its card above.": "指一行看详情；点一行定位到上面的卡片",
   "Quota resets over the next seven days": "未来七天额度重置时间轴",
   "Lowest remaining {percent}%": "最低剩余 {percent}%",
   "About {count} days without quota": "约 {count} 天用不了",
@@ -9530,7 +9529,8 @@ export const zhCN: Readonly<Record<string, string>> = {
   "Next item {shortcut}": "下一条 {shortcut}",
   "· Includes {count} subtasks": "· 含 {count} 个子任务",
   "View all {count} items": "查看全部 {count} 项",
-  "In progress · {main} main tasks, {subtasks} subtasks": "正在进行 · {main} 个主任务，{subtasks} 个子任务",
+  "In progress · {main} main tasks, {subtasks} subtasks":
+    "正在进行 · {main} 个主任务，{subtasks} 个子任务",
   "Free: ": "可用 ",
   "Reserve ": "安全线 ",
   " samples": " 次实测",

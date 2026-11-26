@@ -1870,7 +1870,8 @@ export default function ChatView(props: ChatViewProps) {
       rememberCheckoutIsRepo(environmentId, gitStatusCwd, liveIsGitRepo);
     }
   }, [environmentId, gitStatusCwd, liveIsGitRepo]);
-  const isGitRepo = liveIsGitRepo ?? recallCheckoutIsRepo(environmentId, gitStatusCwd) ?? true;
+  const knownIsGitRepo = liveIsGitRepo ?? recallCheckoutIsRepo(environmentId, gitStatusCwd);
+  const isGitRepo = knownIsGitRepo ?? true;
   // A plain folder holding tracked repositories has turn diffs without being a Git repository.
   const diffAvailable =
     isGitRepo ||
@@ -1971,8 +1972,13 @@ export default function ChatView(props: ChatViewProps) {
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- focuses a newly opened side chat after its composer mounts
   useEffect(() => {
-    if (embedded && activeThreadRef && composerOverlayElement && composerRef.current &&
-        consumeSideChatComposerFocus(activeThreadRef)) {
+    if (
+      embedded &&
+      activeThreadRef &&
+      composerOverlayElement &&
+      composerRef.current &&
+      consumeSideChatComposerFocus(activeThreadRef)
+    ) {
       scheduleComposerFocusStable();
     }
   }, [activeThreadRef, composerOverlayElement, composerRef, embedded, scheduleComposerFocusStable]);
@@ -3556,6 +3562,35 @@ export default function ChatView(props: ChatViewProps) {
         project={activeProject}
         workspacePath={activeWorkspaceRoot ?? activeProject.workspaceRoot}
         canChange={() => !envLocked && !sendInFlightRef.current}
+        workspaceControl={
+          isDraftHeroState &&
+          isLocalDraftThread &&
+          !envLocked &&
+          !backgroundSubmissionPending &&
+          !activeProjectIsScratch &&
+          (knownIsGitRepo === true || worktreeRepositoryChoices.tracksGitRepositories) &&
+          activeThread ? (
+            <BranchToolbar
+              layout="draft-home"
+              ref={branchToolbarRef}
+              forceNewWorktree={multipleModelSelections !== null}
+              environmentId={activeThread.environmentId}
+              threadId={activeThread.id}
+              projectId={activeThread.projectId}
+              worktreePath={activeThread.worktreePath}
+              isServerThread={isServerThread}
+              showGitControls={workspaceModesOffered}
+              showBranchControls={knownIsGitRepo === true}
+              draftId={draftId}
+              onEnvModeChange={onEnvModeChangeStable}
+              startFromOrigin={startFromOrigin}
+              onStartFromOriginChange={onStartFromOriginChange}
+              envMode={envMode}
+              envLocked={envLocked}
+              onComposerFocusRequest={scheduleComposerFocusStable}
+            />
+          ) : null
+        }
         environmentControl={
           <BranchToolbarEnvironmentSelector
             compactLabel={
@@ -3717,7 +3752,7 @@ export default function ChatView(props: ChatViewProps) {
             {isElectron && rightPanelControlsAtRoot ? (
               <span
                 aria-hidden
-                className="pointer-events-none fixed top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] h-[var(--workspace-topbar-height)] w-28 [-webkit-app-region:no-drag]"
+                className="pointer-events-none fixed top-[var(--workspace-fixed-controls-top,var(--workspace-controls-top))] right-[var(--workspace-controls-right)] h-[var(--workspace-topbar-height)] w-(--workspace-titlebar-controls-shield) [-webkit-app-region:no-drag]"
               />
             ) : null}
             {!rightPanelControlsAtRoot && !rightPanelControlsInPanel ? panelLayoutControls : null}
@@ -4278,7 +4313,9 @@ export default function ChatView(props: ChatViewProps) {
                         </div>
                       </ComposerSurface.Shell>
                       {isDraftHeroState && draftWorkspaceNotice ? (
-                        <div data-v10-home-chips>{draftWorkspaceNotice}</div>
+                        <div className="relative" data-v10-home-chips>
+                          {draftWorkspaceNotice}
+                        </div>
                       ) : null}
                       {isDraftHeroState ? (
                         <StardustStart project={activeProjectRef} target={composerDraftTarget} />

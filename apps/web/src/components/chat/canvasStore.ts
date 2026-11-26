@@ -3,7 +3,7 @@ import { createStore } from "zustand";
 import type { ThreadPanelPresentation } from "../../rightPanelLayout";
 import type { DetailsCardMeasurement } from "./ChatCanvasContext";
 import { resolveChatCanvasLayout, type ChatCanvasPreview } from "./chatCanvasLayout";
-import { resolveThreadDetailsCardLayout } from "./threadDetailsCardLayout";
+import { resolveThreadDetailsCardLayout, THREAD_DETAILS_CARD_GAP } from "./threadDetailsCardLayout";
 
 interface CanvasEdges {
   readonly left: number;
@@ -149,6 +149,12 @@ export function resolveChatCanvasModel({
     topInset: detailsCardTopInset,
   });
   const detailsCardMode: ThreadPanelPresentation = detailsCardPlacement ? "inline" : "popover";
+  // Banners centre on the chat lane but may be wider than it; stop them short of the inline card.
+  const laneCenter = (layout.chat.insetStart + container.width - layout.chat.insetEnd) / 2;
+  const bannerMaxWidth =
+    detailsCardInlineOpen && detailsCardPlacement
+      ? Math.max(0, 2 * (detailsCardPlacement.x - THREAD_DETAILS_CARD_GAP - laneCenter))
+      : null;
   return {
     container,
     lane,
@@ -157,5 +163,6 @@ export function resolveChatCanvasModel({
     preferredDetailsCard,
     detailsCardPlacement,
     detailsCardMode,
+    bannerMaxWidth,
   };
 }

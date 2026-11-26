@@ -14,7 +14,8 @@ interface StardustWindowsUpdaterDeps extends StardustUpdaterDeps {
   readonly localAppData: string;
   readonly currentExecutable: string;
   readonly pid: number;
-  readonly spawnInstaller: (script: string, logPath: string) => void;
+  /** Settles when the helper process is running, or rejects when it could not start. */
+  readonly spawnInstaller: (script: string, logPath: string) => void | Promise<void>;
 }
 
 const psLiteral = (value: string): string => "'" + value.replaceAll("'", "''") + "'";
@@ -97,7 +98,7 @@ export function makeStardustWindowsUpdater(deps: StardustWindowsUpdaterDeps) {
     target: "Windows-x64",
     cacheRoot,
     beforeDownload: async () => (payloadPath) => Promise.resolve(payloadPath),
-    start: (update, relaunch) => {
+    start: async (update, relaunch) => {
       try {
         NodeFS.accessSync(NodePath.dirname(deps.currentExecutable), NodeFS.constants.W_OK);
         const script = buildWindowsInstallScript({
@@ -109,7 +110,7 @@ export function makeStardustWindowsUpdater(deps: StardustWindowsUpdaterDeps) {
           logPath,
           relaunch,
         });
-        deps.spawnInstaller(script, logPath);
+        await deps.spawnInstaller(script, logPath);
       } catch (cause) {
         throw new StardustUpdateError("install-failed", describe(cause));
       }

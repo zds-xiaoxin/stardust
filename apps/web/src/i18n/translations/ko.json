@@ -1,4 +1,6 @@
 {
+  "f80647e11d4fd2a0": "행을 클릭하면 세부 정보가 표시됩니다. 다시 클릭하거나 Esc 키를 눌러 닫을 수 있습니다.",
+  "3abf045a6c75e67f": "위의 카드 보기 ↑",
   "4bcfa3b976a421cf": "사이드 채팅",
   "23be753133ae6950": "스레드",
   "0001ae5846061bb6": "{machine}의 스레드",
@@ -12738,5 +12740,7 @@
   "02eb4f4152f2392e": "Codex sharing can’t recover yet",
   "ce0b30bb0d2f3540": "Codex sharing couldn’t continue",
   "6a871ed7ae052e4a": "This conversation still has work or an approval in progress. Try again after it’s resolved.",
-  "6e0f8941c344d5e3": "Automatic recovery couldn’t complete this request. Your conversation is still here. Select another provider in the composer and send the request again."
+  "6e0f8941c344d5e3": "Automatic recovery couldn’t complete this request. Your conversation is still here. Select another provider in the composer and send the request again.",
+  "f858dae2d80bdbae": "작업 공간: {workspace}",
+  "f04d00285fcc5e77": "첫 메시지를 보내면 별도의 브랜치가 생성됩니다"
 }

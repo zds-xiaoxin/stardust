@@ -1749,9 +1749,6 @@ export function UsageLimitsPooled({
           pools={pools}
           now={now}
           v9
-          highlighted={highlighted}
-          openResetPoolId={openResetPoolId}
-          onHighlight={setHighlighted}
           resetPreview={resetPreview}
           onOpenResetPool={(poolId) => {
             setSelectedResetChoiceKey(null);
@@ -1904,7 +1901,7 @@ export function UsageLimitsPooled({
             })}
           </div>
         ) : null}
-        <UsageResetTimeline pools={pools} now={now} onHighlight={setHighlighted} />
+        <UsageResetTimeline pools={pools} now={now} />
       </div>
       {missing.some((driver) => driver === "cursor") ? (
         <div data-usage-cursor-notice>

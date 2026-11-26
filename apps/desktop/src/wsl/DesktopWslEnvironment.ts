@@ -1282,18 +1282,24 @@ export const layer = Layer.effect(
       effect.pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner));
 
     // Cache availability so synchronous IPC bootstrap can read it without yielding to filesystem I/O.
-    const runtimeBundled = !environment.isPackaged || environment.platform !== "win32" ||
-      (yield* fileSystem.exists(environment.path.join(environment.resourcesPath, "wsl-runtime.tar.gz")).pipe(Effect.orElseSucceed(() => false)));
-    const wslAvailable = runtimeBundled && (yield* makeIsAvailable(environment.platform, windir).pipe(
-      Effect.provideService(FileSystem.FileSystem, fileSystem),
-      Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-      Effect.provideService(Path.Path, environment.path),
-      Effect.provideService(
-        DesktopManagedPolicy.DesktopManagedPolicy,
-        yield* DesktopManagedPolicy.DesktopManagedPolicy,
-      ),
-      Effect.withSpan("desktop.wsl.isAvailable"),
-    ));
+    const runtimeBundled =
+      !environment.isPackaged ||
+      environment.platform !== "win32" ||
+      (yield* fileSystem
+        .exists(environment.path.join(environment.resourcesPath, "wsl-runtime.tar.gz"))
+        .pipe(Effect.orElseSucceed(() => false)));
+    const wslAvailable =
+      runtimeBundled &&
+      (yield* makeIsAvailable(environment.platform, windir).pipe(
+        Effect.provideService(FileSystem.FileSystem, fileSystem),
+        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+        Effect.provideService(Path.Path, environment.path),
+        Effect.provideService(
+          DesktopManagedPolicy.DesktopManagedPolicy,
+          yield* DesktopManagedPolicy.DesktopManagedPolicy,
+        ),
+        Effect.withSpan("desktop.wsl.isAvailable"),
+      ));
     const isAvailable = Effect.succeed(wslAvailable);
 
     const windowsToWslPath = (distro: string | null, windowsPath: string) =>

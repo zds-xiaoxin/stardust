@@ -1754,7 +1754,11 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       assert.notProperty(config, "afterPack");
       assert.propertyVal(config, "appId", "com.opensourcexiaoxin.stardust");
       assert.propertyVal(config, "productName", "星尘");
-      assert.propertyVal(config, "artifactName", "Stardust-v${version}-Windows-${arch}-Setup.${ext}");
+      assert.propertyVal(
+        config,
+        "artifactName",
+        "Stardust-v${version}-Windows-${arch}-Setup.${ext}",
+      );
       assert.nestedPropertyVal(config, "win.executableName", "星尘");
       assert.nestedPropertyVal(config, "nsis.shortcutName", "星尘");
       assert.nestedPropertyVal(config, "nsis.uninstallDisplayName", "星尘");

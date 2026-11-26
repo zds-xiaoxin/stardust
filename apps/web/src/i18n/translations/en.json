@@ -1,4 +1,6 @@
 {
+  "f80647e11d4fd2a0": "Click a row for details. Click again or press Esc to close.",
+  "3abf045a6c75e67f": "Show card above ↑",
   "f7746bb94e46a7d4": "Stardust",
   "4bcfa3b976a421cf": "Side chat",
   "23be753133ae6950": "Thread",
@@ -12813,5 +12815,7 @@
   "02eb4f4152f2392e": "Codex sharing can’t recover yet",
   "ce0b30bb0d2f3540": "Codex sharing couldn’t continue",
   "6a871ed7ae052e4a": "This conversation still has work or an approval in progress. Try again after it’s resolved.",
-  "6e0f8941c344d5e3": "Automatic recovery couldn’t complete this request. Your conversation is still here. Select another provider in the composer and send the request again."
+  "6e0f8941c344d5e3": "Automatic recovery couldn’t complete this request. Your conversation is still here. Select another provider in the composer and send the request again.",
+  "f858dae2d80bdbae": "Workspace: {workspace}",
+  "f04d00285fcc5e77": "A separate branch is created when you send the first message"
 }

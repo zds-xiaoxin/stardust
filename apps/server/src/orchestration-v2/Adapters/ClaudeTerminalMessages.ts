@@ -136,18 +136,16 @@ export function permissionModeShown(output: string): PermissionMode | undefined 
   return shown?.mode;
 }
 
-/** Options the SDK would have handled that a startup dialog asks about instead. */
-const ACCEPTED_DIALOG_OPTIONS = ["Yes, I trust this folder", "Yes, I accept"];
-
 /**
  * Key to press for a startup dialog (folder trust, bypass-permissions warning,
  * project MCP servers), or undefined when no dialog is open. Accepts the
- * options listed in ACCEPTED_DIALOG_OPTIONS, keeps the default otherwise.
+ * folder trust and bypass confirmations and keeps the default otherwise.
  */
 export function startupDialogKey(screenTail: string): "down" | "enter" | undefined {
   // Cursor moves render as gaps, so compare with whitespace removed.
   const flat = stripTerminalEscapes(screenTail).replace(/\s/g, "");
-  if (!flat.slice(-200).includes("Entertoconfirm")) {
+  const confirmAt = flat.lastIndexOf("Entertoconfirm");
+  if (confirmAt < 0 || confirmAt < flat.length - 200) {
     if (flat.slice(-600).includes("PressEntertocontinue")) return "enter";
     if (
       flat.lastIndexOf("Choosethetextstylethatlooksbestwithyourterminal") >
@@ -158,12 +156,13 @@ export function startupDialogKey(screenTail: string): "down" | "enter" | undefin
       return "enter";
     return undefined;
   }
-  for (const option of ACCEPTED_DIALOG_OPTIONS) {
-    const label = option.replace(/\s/g, "");
-    if (!flat.includes(label)) continue;
-    const selectedAt = flat.lastIndexOf(`❯${label}`);
-    const otherSelectedAt = flat.lastIndexOf("❯");
-    return selectedAt >= 0 && selectedAt === otherSelectedAt ? "enter" : "down";
+  // Read the options next to the latest footer. Older dialogs can remain in the PTY buffer.
+  const label = flat
+    .slice(0, confirmAt)
+    .match(/(Yes,I(?:trustthisfolder|accept))(?:❯?No,exit)?$/)?.[1];
+  if (label !== undefined) {
+    const selectedAt = flat.lastIndexOf("❯");
+    return selectedAt >= 0 && flat.startsWith(`❯${label}`, selectedAt) ? "enter" : "down";
   }
   return "enter";
 }

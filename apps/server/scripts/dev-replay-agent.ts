@@ -274,23 +274,32 @@ function runAgent(): void {
               : { ...params, update: { ...params.update, content: { ...content, text: chunk } } },
         });
       }
-      if (parity && params.update.sessionUpdate === "tool_call_update" &&
-          "toolCallId" in params.update && params.update.toolCallId === "showcase-edit" &&
-          "status" in params.update && params.update.status === "completed") {
+      if (
+        parity &&
+        params.update.sessionUpdate === "tool_call_update" &&
+        "toolCallId" in params.update &&
+        params.update.toolCallId === "showcase-edit" &&
+        "status" in params.update &&
+        params.update.status === "completed"
+      ) {
         await sleep(30_000, signal);
         if (signal.aborted) return;
       }
     }
   };
 
-  const parityOptions = parity ? [{
-    id: "reasoning_effort",
-    name: "Reasoning effort",
-    category: "thought_level",
-    type: "select",
-    currentValue: "medium",
-    options: ["low", "medium", "high", "xhigh"].map((value) => ({ value, name: value })),
-  }] : undefined;
+  const parityOptions = parity
+    ? [
+        {
+          id: "reasoning_effort",
+          name: "Reasoning effort",
+          category: "thought_level",
+          type: "select",
+          currentValue: "medium",
+          options: ["low", "medium", "high", "xhigh"].map((value) => ({ value, name: value })),
+        },
+      ]
+    : undefined;
 
   const handleRequest = async (message: JsonRpcMessage): Promise<unknown> => {
     const params = message.params ?? {};
