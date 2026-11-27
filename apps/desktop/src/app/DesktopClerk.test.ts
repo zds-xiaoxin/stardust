@@ -3,6 +3,9 @@ import * as NodeFS from "node:fs";
 import * as NodeHttp from "node:http";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
+import * as TestClock from "effect/testing/TestClock";
+import * as Option from "effect/Option";
 import * as NodePathLayer from "@effect/platform-node/NodePath";
 import { codexAuthHandoffUrl, readCodexAuthDelivery } from "@t3tools/shared/codexAuthHandoff";
 import { EnvironmentId, ProviderInstanceId } from "@t3tools/contracts";
@@ -37,6 +40,7 @@ vi.mock("@clerk/electron/storage", () => ({
   storage: storageMock,
 }));
 import * as FileSystem from "effect/FileSystem";
+import * as ElectronDialog from "../electron/ElectronDialog.ts";
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronShell from "../electron/ElectronShell.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
@@ -56,6 +60,9 @@ const layerDesktopClerk = (
   platform: NodeJS.Platform = "darwin",
   fileSystemLayer: Layer.Layer<FileSystem.FileSystem> = FileSystem.layerNoop({
     exists: () => Effect.succeed(false),
+    makeDirectory: () => Effect.void,
+    writeFileString: () => Effect.void,
+    remove: () => Effect.void,
   }),
   shell: ElectronShell.ElectronShell["Service"] = {
     openExternal: () => Effect.succeed(true),
@@ -67,20 +74,23 @@ const layerDesktopClerk = (
 ) => {
   const environment = DesktopEnvironment.DesktopEnvironment.of({
     stateDir,
+    legacyStateDir: Option.none(),
     isDevelopment,
     appDataDirectory: "/tmp/app-data",
     platform,
   } as unknown as DesktopEnvironment.DesktopEnvironment["Service"]);
 
   const electronApp = {
+    preferredSystemLanguages: Effect.succeed(["zh-CN"]),
     setPath: (name: string, value: string) =>
       Effect.sync(() => {
         events.push(`setPath:${name}:${value}`);
       }),
-    requestSingleInstanceLock: Effect.sync(() => {
-      events.push("requestSingleInstanceLock");
-      return requestSingleInstanceLockMock();
-    }),
+    requestSingleInstanceLock: () =>
+      Effect.sync(() => {
+        events.push("requestSingleInstanceLock");
+        return requestSingleInstanceLockMock();
+      }),
     exit: (code: number) =>
       Effect.sync(() => {
         events.push(`exit:${code}`);
@@ -102,6 +112,12 @@ const layerDesktopClerk = (
     Layer.provide(
       Layer.mergeAll(
         NodePathLayer.layerPosix,
+        NodeCrypto.layer,
+        Layer.succeed(ElectronDialog.ElectronDialog, {
+          ...ElectronDialog.make,
+          showErrorBox: (title, message) =>
+            Effect.sync(() => events.push(`dialog:${title}:${message}`)).pipe(Effect.asVoid),
+        }),
         Layer.succeed(DesktopEnvironment.DesktopEnvironment, environment),
         Layer.succeed(ElectronApp.ElectronApp, electronApp),
         Layer.succeed(ElectronShell.ElectronShell, shell),
@@ -123,25 +139,25 @@ describe("DesktopClerk", () => {
       name: "packaged macOS",
       isDevelopment: false,
       platform: "darwin" as const,
-      userData: "/tmp/app-data/t3code-v2",
+      userData: "/tmp/app-data/stardust",
     },
     {
       name: "packaged Linux",
       isDevelopment: false,
       platform: "linux" as const,
-      userData: "/tmp/app-data/t3code-v2",
+      userData: "/tmp/app-data/stardust",
     },
     {
       name: "packaged Windows",
       isDevelopment: false,
       platform: "win32" as const,
-      userData: "/tmp/app-data/t3code-v2",
+      userData: "/tmp/app-data/stardust",
     },
     {
       name: "development",
       isDevelopment: true,
       platform: "win32" as const,
-      userData: "/tmp/app-data/t3code-dev",
+      userData: "/tmp/app-data/stardust-dev",
     },
   ])(
     "creates the bridge before startup can yield to the event loop ($name)",
@@ -280,34 +296,45 @@ describe("DesktopClerk", () => {
     );
   });
 
-  it.effect.each(["darwin", "win32", "linux"] as const)(
-    "quits a second launch before initializing Clerk or the application runtime on %s",
-    (platform) =>
+  it.effect.each([true, false])(
+    "exits before initializing Clerk when the lock fails (primary reachable: %s)",
+    (primaryReachable) =>
       Effect.gen(function* () {
         requestSingleInstanceLockMock.mockReturnValueOnce(false);
-        createClerkBridgeMock.mockReturnValue({ cleanup: vi.fn(), isPrimaryInstance: true });
         const events: string[] = [];
-        const runtime = layerDesktopClerk(false, events, platform).pipe(
+        const fs = FileSystem.layerNoop({
+          exists: () => Effect.succeed(false),
+          makeDirectory: () => Effect.void,
+          writeFileString: (path) =>
+            Effect.sync(() => {
+              if (path.endsWith("stardust-startup.log")) events.push("startup-log");
+            }),
+          readFileString: () => Effect.succeed(primaryReachable ? "1" : ""),
+          remove: () => Effect.void,
+        });
+        const runtime = layerDesktopClerk(false, events, "win32", fs).pipe(
           Layer.flatMap(() =>
-            Layer.effectDiscard(
-              Effect.sync(() => {
-                events.push("initializeApplicationRuntime");
-              }),
-            ),
+            Layer.effectDiscard(Effect.sync(() => events.push("initializeApplicationRuntime"))),
           ),
         );
         const launch = yield* Effect.scoped(Layer.build(runtime)).pipe(
           Effect.forkChild({ startImmediately: true }),
         );
+        yield* TestClock.adjust("3 seconds");
 
         assert.isUndefined(launch.pollUnsafe());
-        assert.deepEqual(events, [
-          "setPath:userData:/tmp/app-data/t3code-v2",
+        assert.deepEqual(events.slice(0, 2), [
+          "setPath:userData:/tmp/app-data/stardust",
           "requestSingleInstanceLock",
-          "exit:0",
         ]);
+        assert.equal(events.at(-1), primaryReachable ? "exit:0" : "exit:1");
+        assert.equal(events.includes("startup-log"), !primaryReachable);
+        const dialog = events.find((value) => value.startsWith("dialog:"));
+        if (primaryReachable) assert.isUndefined(dialog);
+        else assert.match(dialog ?? "", /^dialog:星尘无法启动:星尘无法锁定数据目录/);
         assert.equal(createClerkBridgeMock.mock.calls.length, 0);
         assert.equal(storageMock.mock.calls.length, 0);
+        assert.notInclude(events, "initializeApplicationRuntime");
       }),
   );
 });
@@ -384,7 +411,7 @@ it.effect.each(["startup", "open-url", "early-second-instance"] as const)(
       }).toString();
       const request = {
         authorizationUrl: authorize.toString(),
-        returnUrl: "https://app.t3.codes/welcome#agents:remote-one",
+        returnUrl: "http://127.0.0.1:5173/welcome#agents:remote-one",
         environmentId: EnvironmentId.make("remote-one"),
         instanceId: ProviderInstanceId.make("work"),
         flowId: "flow-one",

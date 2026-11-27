@@ -42,7 +42,7 @@ const layerElectronApp = Layer.succeed(ElectronApp.ElectronApp, {
   systemLocale: Effect.succeed("en-US"),
   preferredSystemLanguages: Effect.succeed(["en-US"]),
   whenReady: Effect.void,
-  requestSingleInstanceLock: Effect.succeed(true),
+  requestSingleInstanceLock: () => Effect.succeed(true),
   quit: Effect.void,
   exit: () => Effect.void,
   relaunch: () => Effect.void,

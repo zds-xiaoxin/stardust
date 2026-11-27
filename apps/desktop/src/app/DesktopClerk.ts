@@ -3,6 +3,8 @@ import * as NodeURL from "node:url";
 import { storage } from "@clerk/electron/storage";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
@@ -18,6 +20,8 @@ import { readPairingAppLink } from "@t3tools/shared/remote";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { clerkFrontendApiHostnameFromPublishableKey } from "@t3tools/shared/relayAuth";
 import * as ElectronApp from "../electron/ElectronApp.ts";
+import * as ElectronDialog from "../electron/ElectronDialog.ts";
+import { startupLockCopy } from "../i18n/catalog.ts";
 import * as ElectronProtocol from "../electron/ElectronProtocol.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import * as DesktopUserData from "./DesktopUserData.ts";
@@ -55,6 +59,7 @@ export class DesktopClerkBridgeCleanupError extends Schema.TaggedError<DesktopCl
 export class DesktopClerk extends Context.Service<
   DesktopClerk,
   {
+    readonly userDataPath: string;
     readonly configure: Effect.Effect<
       void,
       never,
@@ -97,6 +102,8 @@ function createDesktopClerkBridge(tokenDirectory: string, isDevelopment: boolean
   });
 }
 
+const PROBE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** @public */
 export const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
@@ -104,15 +111,54 @@ export const make = Effect.gen(function* () {
   const shell = yield* ElectronShell.ElectronShell;
   const path = yield* Path.Path;
 
-  // Must not yield: the bridge registers a scheme Electron rejects once ready.
+  const fs = yield* FileSystem.FileSystem;
+  const dialog = yield* ElectronDialog.ElectronDialog;
+  const random = yield* SecureRandom.SecureRandom;
+
+  // Keep successful startup synchronous until the bridge registers its privileged scheme.
   const userDataPath = yield* DesktopUserData.resolveUserDataPath(environment);
+  yield* DesktopUserData.profileMigration({ ...environment, userDataPath });
   yield* electronApp.setPath("userData", userDataPath);
 
-  if (!(yield* electronApp.requestSingleInstanceLock)) {
-    yield* electronApp.exit(0);
-    // Keep the runtime unbuilt until Electron exits without an interrupt-only status.
+  const probe = yield* random.uuidV4();
+  const probePath = (id: string) => path.join(userDataPath, `stardust-instance-${id}`);
+  const probeFile = probePath(probe);
+  yield* fs.makeDirectory(userDataPath, { recursive: true }).pipe(Effect.ignore);
+  const probeCreated = yield* fs.writeFileString(probeFile, "", { flag: "wx" }).pipe(
+    Effect.as(true),
+    Effect.orElseSucceed(() => false),
+  );
+  const removeProbe = probeCreated
+    ? fs.remove(probeFile, { force: true }).pipe(Effect.ignore)
+    : Effect.void;
+  const acquired = yield* electronApp
+    .requestSingleInstanceLock({ stardustProbe: probe })
+    .pipe(Effect.catchCause(() => Effect.succeed(false)));
+  if (!acquired) {
+    // Electron returns false for both a notified primary and an OS lock error.
+    // Only an acknowledgement from the primary makes a silent exit appropriate.
+    const acknowledged = fs.readFileString(probeFile).pipe(
+      Effect.map((value) => value === "1"),
+      Effect.orElseSucceed(() => false),
+    );
+    const reachedPrimary =
+      probeCreated &&
+      ((yield* acknowledged) ||
+        (yield* Effect.sleep("3 seconds").pipe(Effect.andThen(acknowledged))));
+    yield* removeProbe;
+    if (!reachedPrimary) {
+      yield* DesktopUserData.logEarlyStartup(
+        environment.appDataDirectory,
+        "Could not acquire the Stardust single-instance lock or reach its owner.",
+      );
+      if (environment.platform === "linux") yield* electronApp.whenReady.pipe(Effect.ignore);
+      const copy = startupLockCopy(yield* electronApp.preferredSystemLanguages);
+      yield* dialog.showErrorBox(copy.title, copy.message);
+    }
+    yield* electronApp.exit(reachedPrimary ? 0 : 1);
     return yield* Effect.never;
   }
+  yield* removeProbe;
   // Chromium opens these caches at the first event-loop turn, before ready.
   yield* DesktopUserData.clearStaleGpuCaches({
     userDataPath,
@@ -123,9 +169,26 @@ export const make = Effect.gen(function* () {
   let handleSecondInstance = (argv: readonly string[]) => {
     pendingSecondInstances.push(argv);
   };
-  yield* electronApp.on("second-instance", (_event: unknown, argv: readonly string[]) => {
-    handleSecondInstance(argv);
-  });
+  const runAck = Effect.runSyncWith(yield* Effect.context<never>());
+  yield* electronApp.on(
+    "second-instance",
+    (
+      _event: unknown,
+      argv: readonly string[],
+      _cwd: string,
+      data?: { stardustProbe?: unknown },
+    ) => {
+      if (typeof data?.stardustProbe === "string" && PROBE_PATTERN.test(data.stardustProbe)) {
+        // r+ only acknowledges an existing probe, including if its sender already timed out.
+        runAck(
+          fs
+            .writeFileString(probePath(data.stardustProbe), "1", { flag: "r+" })
+            .pipe(Effect.ignore),
+        );
+      }
+      handleSecondInstance(argv);
+    },
+  );
   // macOS hands a launch link to open-url, which can fire before configure runs.
   const pendingOpenUrls: Array<string> = [];
   let handleOpenUrl = (url: string) => {
@@ -135,6 +198,14 @@ export const make = Effect.gen(function* () {
   yield* electronApp.on("open-url", (event: { preventDefault: () => void }, url: string) => {
     if (handleOpenUrl(url)) event.preventDefault();
   });
+
+  if (Option.isSome(environment.legacyStateDir)) {
+    yield* DesktopUserData.migrateOrStartFresh(environment.appDataDirectory, {
+      kind: "server",
+      source: environment.legacyStateDir.value,
+      destination: environment.stateDir,
+    });
+  }
 
   yield* Effect.acquireRelease(
     Effect.try({
@@ -163,6 +234,7 @@ export const make = Effect.gen(function* () {
   );
 
   return DesktopClerk.of({
+    userDataPath,
     configure: Effect.gen(function* () {
       const electronApp = yield* ElectronApp.ElectronApp;
       const electronWindow = yield* ElectronWindow.ElectronWindow;

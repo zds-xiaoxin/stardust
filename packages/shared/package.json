@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./stardustProfileMigration": "./src/stardustProfileMigration.ts",
     "./stardustWindowsBrand": "./src/stardustWindowsBrand.ts",
     "./png": {
       "types": "./src/png.ts",

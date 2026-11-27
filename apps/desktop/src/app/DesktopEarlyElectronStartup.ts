@@ -10,8 +10,10 @@ import {
   type LinuxPasswordStorePreference,
 } from "../linuxSecretStorage.ts";
 import {
+  normalizeConfiguredBaseDir,
   resolveDesktopBaseDir,
   resolveDesktopStateDir,
+  resolveLegacyDesktopStateDir,
   type JoinPath,
 } from "./DesktopStatePaths.ts";
 
@@ -31,7 +33,9 @@ export interface EarlyLinuxElectronOptions {
 }
 
 export const resolveLinuxDesktopEntryName = (isDevelopment: boolean): string =>
-  isDevelopment ? "com.t3tools.T3Code.Development.desktop" : "com.t3tools.T3Code.desktop";
+  isDevelopment
+    ? "com.opensourcexiaoxin.stardust.dev.desktop"
+    : "com.opensourcexiaoxin.stardust.desktop";
 
 const trimNonEmpty = (value: string | undefined): string | null => {
   const trimmed = value?.trim();
@@ -72,8 +76,26 @@ export function resolveEarlyLinuxPasswordStorePreference(
   input: EarlyDesktopSettingsInput,
 ): LinuxPasswordStorePreference {
   const settingsPath = resolveEarlyDesktopSettingsPath(input);
+  let raw: string;
   try {
-    const parsed = decodeEarlyDesktopSettingsJson(input.readFileString(settingsPath));
+    raw = input.readFileString(settingsPath);
+  } catch (error) {
+    const legacyStateDir = resolveLegacyDesktopStateDir({
+      ...input,
+      t3Home: Option.fromUndefinedOr(input.env.T3CODE_HOME),
+      isDevelopment: isDevelopmentEnvironment(input.env),
+    });
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT" || Option.isNone(legacyStateDir)) {
+      return DEFAULT_LINUX_PASSWORD_STORE;
+    }
+    try {
+      raw = input.readFileString(input.joinPath(legacyStateDir.value, "desktop-settings.json"));
+    } catch {
+      return DEFAULT_LINUX_PASSWORD_STORE;
+    }
+  }
+  try {
+    const parsed = decodeEarlyDesktopSettingsJson(raw);
     return normalizeLinuxPasswordStorePreference(parsed.linuxPasswordStore);
   } catch {
     return DEFAULT_LINUX_PASSWORD_STORE;
@@ -166,11 +188,21 @@ export function restoreEarlyLinuxDeviceScaleFactor(
 ): void {
   // Keep this separate from desktop-settings.json: the settings service rewrites
   // that document, and Chromium needs the value before that service is available.
-  const path = input.joinPath(
-    resolveEarlyDesktopSettingsPath(input),
-    "..",
-    "linux-device-scale-factor",
-  );
+  const filename = "linux-device-scale-factor";
+  const statePath = input.joinPath(resolveEarlyDesktopSettingsPath(input), "..", filename);
+  const t3Home = Option.fromUndefinedOr(input.env.T3CODE_HOME);
+  const legacyState = resolveLegacyDesktopStateDir({
+    ...input,
+    t3Home,
+    isDevelopment: isDevelopmentEnvironment(input.env),
+  });
+  // An explicit scale switch can be saved before the state profile is copied.
+  const path = Option.isSome(normalizeConfiguredBaseDir(t3Home))
+    ? statePath
+    : input.joinPath(
+        resolveDesktopBaseDir({ ...input, t3Home }),
+        isDevelopmentEnvironment(input.env) ? `${filename}-dev` : filename,
+      );
   const switchName = "force-device-scale-factor";
   const isValid = (value: string) =>
     value.trim().length > 0 && Number.isFinite(Number(value)) && Number(value) > 0;
@@ -185,10 +217,15 @@ export function restoreEarlyLinuxDeviceScaleFactor(
     }
     return;
   }
-  try {
-    const value = input.readFileString(path).trim();
-    if (isValid(value)) input.commandLine.appendSwitch(switchName, value);
-  } catch {
-    // First launch, missing state, or unreadable state: keep Chromium's default.
+  const candidates = new Set([path, statePath]);
+  if (Option.isSome(legacyState)) candidates.add(input.joinPath(legacyState.value, filename));
+  for (const candidate of candidates) {
+    try {
+      const value = input.readFileString(candidate).trim();
+      if (isValid(value)) input.commandLine.appendSwitch(switchName, value);
+      return;
+    } catch {
+      // First launch, missing state, or unreadable state: try the previous location.
+    }
   }
 }

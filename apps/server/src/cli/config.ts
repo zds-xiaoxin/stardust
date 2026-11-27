@@ -6,6 +6,7 @@ import {
   type SignalExport,
 } from "@t3tools/shared/observability";
 import * as OtelEnvironment from "@t3tools/shared/otelEnvironment";
+import { migrateProfile, MIGRATION_MARKER } from "@t3tools/shared/stardustProfileMigration";
 import { parsePersistedServerObservabilitySettings } from "@t3tools/shared/serverSettings";
 import { DesktopBackendBootstrap, PortSchema } from "@t3tools/contracts";
 import * as Config from "effect/Config";
@@ -322,10 +323,16 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     normalizedFlags.baseDir,
     Option.fromUndefinedOr(env.t3Home),
   ).pipe(Option.filter((value) => value.trim().length > 0));
+  const configuredBase = resolveOptionPrecedence(
+    explicitBaseDir,
+    Option.fromUndefinedOr(bootstrap?.t3Home),
+  );
+  const useStardustWslHome =
+    mode === "desktop" &&
+    Option.isNone(configuredBase) &&
+    (yield* Config.Boolean("STARDUST_WSL_DEFAULT_HOME").pipe(Config.withDefault(false)));
   const baseDir = yield* resolveBaseDir(
-    Option.getOrUndefined(
-      resolveOptionPrecedence(explicitBaseDir, Option.fromUndefinedOr(bootstrap?.t3Home)),
-    ),
+    useStardustWslHome ? "~/.stardust" : Option.getOrUndefined(configuredBase),
   );
   const rawCwd = Option.getOrElse(normalizedFlags.cwd, () => process.cwd());
   const cwd = path.resolve(yield* expandHomePath(rawCwd.trim()));
@@ -357,6 +364,30 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     }
   }
   yield* fs.makeDirectory(cwd, { recursive: true });
+  if (useStardustWslHome) {
+    const legacy = path.join(path.dirname(baseDir), ".t3", path.basename(derivedPaths.stateDir));
+    yield* Effect.try({
+      try: () =>
+        migrateProfile({ kind: "server", source: legacy, destination: derivedPaths.stateDir }),
+      catch: () => "Legacy WSL profile copy failed",
+    }).pipe(
+      Effect.catch(() =>
+        Effect.gen(function* () {
+          yield* Effect.logWarning(
+            "Could not copy the legacy WSL server profile. Starting with a fresh profile.",
+          );
+          yield* fs.makeDirectory(derivedPaths.stateDir, { recursive: true }).pipe(Effect.ignore);
+          yield* fs
+            .writeFileString(
+              path.join(derivedPaths.stateDir, MIGRATION_MARKER),
+              "fresh-after-error\n",
+              { flag: "wx" },
+            )
+            .pipe(Effect.ignore);
+        }),
+      ),
+    );
+  }
   yield* ServerConfig.ensureServerDirectories(derivedPaths);
   const persistedObservabilitySettings = yield* loadPersistedObservabilitySettings(
     derivedPaths.settingsPath,

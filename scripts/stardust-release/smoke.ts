@@ -387,10 +387,146 @@ async function withApp(
   }
 }
 
+async function verifyWindowsProfileIsolation(executablePath: string) {
+  const home = NodePath.join(scratch, "isolation-home");
+  const appData = NodePath.join(home, "AppData", "Roaming");
+  const oldProfile = NodePath.join(appData, "t3code-v2");
+  const oldHome = NodePath.join(home, ".t3");
+  const newProfile = NodePath.join(appData, "stardust");
+  const newHome = NodePath.join(home, ".stardust");
+  const migrationMarker = "stardust-v127-migration";
+  initializeHome(oldHome, true);
+  const launchEnv = {
+    ...process.env,
+    USERPROFILE: home,
+    APPDATA: appData,
+    LOCALAPPDATA: NodePath.join(home, "AppData", "Local"),
+    T3CODE_TELEMETRY_ENABLED: "false",
+    T3CODE_ENVIRONMENT_LABEL: "Release fixture",
+    STARDUST_UPDATE_FIXTURE_PORT: fixturePort,
+    T3CODE_HOME: undefined,
+    T3CODE_PORT: undefined,
+    T3CODE_DESKTOP_USER_DATA_DIR: undefined,
+  };
+  const launch = (env: NodeJS.ProcessEnv) =>
+    _electron.launch({ executablePath, args: ["--no-sandbox"], env, timeout: 60_000 });
+  const mainWindow = (app: ElectronApplication) =>
+    waitUntil("isolated main window", async () =>
+      app.windows().find((page) => page.url().startsWith("t3code://app/")),
+    );
+  const close = async (app: ElectronApplication) => {
+    const child = app.process();
+    await Promise.race([
+      app.close().catch(() => {}),
+      NodeTimersPromises.setTimeout(10_000, undefined, { ref: false }),
+    ]);
+    if (child.exitCode === null) child.kill("SIGKILL");
+  };
+
+  const verifySeededThread = async (page: Page) => {
+    const thread = page.locator("li[data-thread-item]", { hasText: "Release launch check" });
+    const start = page.getByRole("button", { name: /^(Get started|Start|开始|开始使用)$/ });
+    const home = page.locator("[data-stardust-hero-mark]");
+    await home.or(start).first().waitFor({ timeout: 60_000 });
+    if (await start.isVisible()) await start.click();
+    await home.waitFor({ timeout: 60_000 });
+    if (!(await thread.first().isVisible())) {
+      await page
+        .getByText(/^(待归类|Uncategorized)$/)
+        .first()
+        .click();
+    }
+    await thread.first().waitFor({ timeout: 60_000 });
+  };
+  const recordFailure = async (label: string, app: ElectronApplication) => {
+    const page = app.windows().find((candidate) => candidate.url().startsWith("t3code://app/"));
+    if (!page) return;
+    await page
+      .screenshot({ path: NodePath.join(output, `failure-isolation-${label}.png`), timeout: 5_000 })
+      .catch(() => {});
+    const log = NodePath.join(appData, "stardust-startup.log");
+    if (NodeFS.existsSync(log))
+      NodeFS.copyFileSync(log, NodePath.join(output, "isolation-startup.log"));
+  };
+
+  // The same executable deliberately holds the old Chromium singleton key.
+  // Its backend also continues to own the old state database during the backup.
+  const legacy = await launch({
+    ...launchEnv,
+    T3CODE_DESKTOP_USER_DATA_DIR: oldProfile,
+    T3CODE_HOME: oldHome,
+  });
+  try {
+    const legacyWindow = await mainWindow(legacy);
+    NodeAssert.equal(await legacy.evaluate(({ app }) => app.getPath("userData")), oldProfile);
+    await verifySeededThread(legacyWindow);
+    console.log("Legacy lock holder opened the seed thread.");
+    await legacyWindow.evaluate(() => localStorage.setItem("stardust-migration-smoke", "legacy"));
+    const levelDb = NodePath.join(oldProfile, "Local Storage", "leveldb");
+    await waitUntil("legacy Chromium storage flush", async () =>
+      NodeFS.readdirSync(levelDb).some(
+        (name) =>
+          /\.(?:log|ldb)$/.test(name) &&
+          NodeFS.readFileSync(NodePath.join(levelDb, name)).includes("stardust-migration-smoke"),
+      )
+        ? true
+        : undefined,
+    );
+    const isolated = await launch(launchEnv);
+    try {
+      const page = await mainWindow(isolated);
+      NodeAssert.equal(await isolated.evaluate(({ app }) => app.getPath("userData")), newProfile);
+      await verifySeededThread(page);
+      NodeAssert.equal(
+        await page.evaluate(() => localStorage.getItem("stardust-migration-smoke")),
+        "legacy",
+      );
+      NodeAssert.match(
+        NodeFS.readFileSync(NodePath.join(newProfile, migrationMarker), "utf8").trim(),
+        /^(copied|copied-with-local-storage-fallback)$/,
+      );
+      NodeAssert.equal(
+        NodeFS.readFileSync(NodePath.join(newHome, "userdata", migrationMarker), "utf8"),
+        "copied\n",
+      );
+      NodeAssert.equal(NodeFS.existsSync(NodePath.join(oldProfile, migrationMarker)), false);
+      NodeAssert.equal(legacy.process().exitCode, null);
+      NodeAssert.equal(legacyWindow.isClosed(), false);
+      await isolated.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.minimize());
+      await NodeUtil.promisify(NodeChildProcess.execFile)(executablePath, ["--no-sandbox"], {
+        env: launchEnv,
+        timeout: 20_000,
+        windowsHide: true,
+      });
+      await waitUntil("original Stardust window restored", async () =>
+        (await isolated.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0]?.isMinimized(),
+        )) === false
+          ? true
+          : undefined,
+      );
+      console.log(
+        "Windows isolation smoke passed: legacy lock holder and Stardust both open; legacy browser data and server threads copied.",
+      );
+    } catch (error) {
+      await recordFailure("stardust", isolated);
+      throw error;
+    } finally {
+      await close(isolated);
+    }
+  } catch (error) {
+    await recordFailure("legacy", legacy);
+    throw error;
+  } finally {
+    await close(legacy);
+  }
+}
+
 try {
   const smokeExecutable = await preparePlaywrightCopy(scratch);
   NodeFS.mkdirSync(NodePath.join(workspace, "src"), { recursive: true });
   NodeFS.writeFileSync(NodePath.join(workspace, "src/math.ts"), "export const sum = 1 + 1;\n");
+  if (windows) await verifyWindowsProfileIsolation(smokeExecutable);
   for (const theme of ["light", "dark"]) {
     if (windows && values.native) {
       NodeChildProcess.execFileSync("pwsh.exe", [
@@ -580,7 +716,7 @@ try {
         fixtureRequests,
         releaseInspectorDisabled: true,
         playwrightCopy: true,
-        ...(windows ? { windowsEvidence } : {}),
+        ...(windows ? { windowsEvidence, legacyProfileIsolation: "passed" } : {}),
       },
       null,
       2,

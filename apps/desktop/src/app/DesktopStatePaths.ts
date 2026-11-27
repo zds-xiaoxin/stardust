@@ -2,7 +2,7 @@ import * as Option from "effect/Option";
 
 export type JoinPath = (first: string, ...segments: string[]) => string;
 
-function normalizeConfiguredBaseDir(t3Home: Option.Option<string>): Option.Option<string> {
+export function normalizeConfiguredBaseDir(t3Home: Option.Option<string>): Option.Option<string> {
   if (Option.isNone(t3Home)) {
     return Option.none();
   }
@@ -16,7 +16,7 @@ export function resolveDesktopBaseDir(input: {
   readonly t3Home: Option.Option<string>;
 }): string {
   return Option.getOrElse(normalizeConfiguredBaseDir(input.t3Home), () =>
-    input.joinPath(input.homeDirectory, ".t3"),
+    input.joinPath(input.homeDirectory, ".stardust"),
   );
 }
 
@@ -29,4 +29,17 @@ export function resolveDesktopStateDir(input: {
   const useDevSubdir =
     input.isDevelopment && Option.isNone(normalizeConfiguredBaseDir(input.t3Home));
   return input.joinPath(input.baseDir, useDevSubdir ? "dev" : "userdata");
+}
+
+export function resolveLegacyDesktopStateDir(input: {
+  readonly homeDirectory: string;
+  readonly isDevelopment: boolean;
+  readonly joinPath: JoinPath;
+  readonly t3Home: Option.Option<string>;
+}): Option.Option<string> {
+  return Option.isSome(normalizeConfiguredBaseDir(input.t3Home))
+    ? Option.none()
+    : Option.some(
+        input.joinPath(input.homeDirectory, ".t3", input.isDevelopment ? "dev" : "userdata"),
+      );
 }

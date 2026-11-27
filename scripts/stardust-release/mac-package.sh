@@ -7,7 +7,7 @@ plist="$built/Contents/Info.plist"
 for key in CFBundleIdentifier CFBundleName CFBundleExecutable; do
   /usr/libexec/PlistBuddy -c "Print :$key" "$plist" > "$out/$key.original"
 done
-[[ "$(cat "$out/CFBundleIdentifier.original")" == com.t3tools.t3code ]]
+[[ "$(cat "$out/CFBundleIdentifier.original")" == com.opensourcexiaoxin.stardust ]]
 staged="$out/Stardust.app"
 rm -rf "$staged"
 ditto "$built" "$staged"

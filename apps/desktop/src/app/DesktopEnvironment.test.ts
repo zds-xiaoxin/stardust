@@ -68,8 +68,20 @@ describe("DesktopEnvironment", () => {
       );
       const production = yield* makeEnvironment();
 
-      assert.equal(development.stateDir, "/Users/alice/.t3/dev");
-      assert.equal(production.stateDir, "/Users/alice/.t3/userdata");
+      assert.equal(development.stateDir, "/Users/alice/.stardust/dev");
+      assert.equal(production.stateDir, "/Users/alice/.stardust/userdata");
+      assert.equal(
+        production.legacyStateDir._tag === "Some" && production.legacyStateDir.value,
+        "/Users/alice/.t3/userdata",
+      );
+    }),
+  );
+
+  it.effect("honors an explicit server home without migrating into it", () =>
+    Effect.gen(function* () {
+      const explicit = yield* makeEnvironment({}, { T3CODE_HOME: "/custom-home" });
+      assert.equal(explicit.stateDir, "/custom-home/userdata");
+      assert.equal(explicit.legacyStateDir._tag, "None");
     }),
   );
 });

@@ -65,7 +65,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { STARDUST_WINDOWS_BRAND } from "@t3tools/shared/stardustWindowsBrand";
 
 const LINUX_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
-const DESKTOP_APP_ID = "com.t3tools.t3code";
+const DESKTOP_APP_ID = STARDUST_WINDOWS_BRAND.appId;
 const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/u;
 
 const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
@@ -2840,7 +2840,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
             "scripts/prepare-server-compile-cache.cjs",
           ),
         }),
-    appId: platform === "win" ? STARDUST_WINDOWS_BRAND.appId : DESKTOP_APP_ID,
+    appId: DESKTOP_APP_ID,
     productName:
       platform === "win" ? STARDUST_WINDOWS_BRAND.displayName : resolveDesktopProductName(version),
     artifactName:
@@ -2992,7 +2992,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     buildConfig.afterPack = path.join(repoRoot, "scripts/linux-after-pack.ts");
     buildConfig.linux = {
       target: target === "AppImage" ? [target, "deb"] : [target],
-      executableName: "t3code",
+      executableName: "stardust",
       icon: "icons",
       category: "Development",
       synopsis: "Desktop GUI for coding agents",
@@ -3006,7 +3006,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       desktop: {
         entry: {
           // Match Electron's WM_CLASS from setDesktopName so docks use this launcher.
-          StartupWMClass: "com.t3tools.T3Code",
+          StartupWMClass: DESKTOP_APP_ID,
         },
       },
     };
@@ -3020,8 +3020,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     buildConfig.deb = {
       // FPM runs outside the staged app directory, so source paths must be absolute.
       fpm: [
-        `${path.join(repoRoot, "apps/desktop/resources/linux/com.t3tools.t3code.metainfo.xml")}=/usr/share/metainfo/com.t3tools.t3code.metainfo.xml`,
-        `${path.join(repoRoot, "LICENSE")}=/usr/share/doc/t3code/copyright`,
+        `${path.join(repoRoot, "apps/desktop/resources/linux/com.opensourcexiaoxin.stardust.metainfo.xml")}=/usr/share/metainfo/com.opensourcexiaoxin.stardust.metainfo.xml`,
+        `${path.join(repoRoot, "LICENSE")}=/usr/share/doc/stardust/copyright`,
       ],
       // Debian 13 and Ubuntu 24.04 use 64-bit-time names; retain old-name fallbacks.
       depends: [
@@ -4025,7 +4025,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     );
   }
   const stagePackageJson: StagePackageJson = {
-    name: options.platform === "win" ? "stardust" : "t3code",
+    name: "stardust",
     version: appVersion,
     buildVersion: appVersion,
     t3codeCommitHash: commitHash,

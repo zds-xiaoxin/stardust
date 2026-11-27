@@ -24,6 +24,9 @@ vi.mock("../ipc/DesktopIpcHandlers.ts", () => ({
 }));
 vi.mock("../updates/DesktopRemoteUpdates.ts", () => ({ listen: Effect.void }));
 vi.mock("./DesktopStartupRecovery.ts", () => ({ listen: Effect.void }));
+vi.mock("../backend/DesktopBackendRecoveryProcess.ts", () => ({
+  make: () => ({ recover: () => Promise.resolve() }),
+}));
 
 import * as DesktopApp from "./DesktopApp.ts";
 import * as DesktopAppActivation from "./DesktopAppActivation.ts";
@@ -97,7 +100,6 @@ const runStubbedDesktop = (stub: StubbedDesktop) =>
       .pipe(
         Effect.provide(NodeCrypto.layer),
         Effect.provideService(DesktopAppIdentity.DesktopAppIdentity, {
-          resolveUserDataPath: Effect.succeed("/isolated/userdata"),
           configure: stub.record("identity"),
         } as DesktopAppIdentity.DesktopAppIdentity["Service"]),
         Effect.provideService(ElectronApp.ElectronApp, {
@@ -139,6 +141,7 @@ const runStubbedDesktop = (stub: StubbedDesktop) =>
           relaunch: () => Effect.void,
         }),
         Effect.provideService(DesktopClerk.DesktopClerk, {
+          userDataPath: "/isolated/userdata",
           configure: Effect.void,
         } as DesktopClerk.DesktopClerk["Service"]),
         Effect.provideService(ElectronSafeStorage.ElectronSafeStorage, {
@@ -171,6 +174,7 @@ const runStubbedDesktop = (stub: StubbedDesktop) =>
           quitting,
         } as DesktopState.DesktopState["Service"]),
         Effect.provideService(DesktopWindow.DesktopWindow, {
+          showConnectingSplash: Effect.void,
           ensureMain: stub
             .record("window")
             .pipe(Effect.andThen(Deferred.succeed(stub.windowStarted, undefined))),

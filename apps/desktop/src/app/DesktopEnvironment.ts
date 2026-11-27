@@ -15,7 +15,11 @@ import * as Path from "effect/Path";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopConfig from "./DesktopConfig.ts";
 import { resolveLinuxDesktopEntryName } from "./DesktopEarlyElectronStartup.ts";
-import { resolveDesktopBaseDir, resolveDesktopStateDir } from "./DesktopStatePaths.ts";
+import {
+  resolveDesktopBaseDir,
+  resolveDesktopStateDir,
+  resolveLegacyDesktopStateDir,
+} from "./DesktopStatePaths.ts";
 import { isNightlyDesktopVersion } from "../updates/updateChannels.ts";
 import type { OtlpProtocol } from "@t3tools/shared/observability";
 
@@ -47,6 +51,7 @@ export class DesktopEnvironment extends Context.Service<
     readonly appDataDirectory: string;
     readonly baseDir: string;
     readonly stateDir: string;
+    readonly legacyStateDir: Option.Option<string>;
     readonly desktopSettingsPath: string;
     readonly clientSettingsPath: string;
     readonly savedEnvironmentRegistryPath: string;
@@ -111,7 +116,7 @@ export function resolveDesktopAppBranding(input: {
     baseName: APP_BASE_NAME,
     stageLabel,
     // Stardust custom build: shown in the menu bar, About panel and Hide/Quit items.
-    // Only the visible name changes; app.setName (keychain, User-Agent) and userData keep the base name.
+    // The macOS safeStorage name is retained for decrypting existing profiles.
     displayName:
       stageLabel === "Dev" ? `${STARDUST_DISPLAY_NAME} (${stageLabel})` : STARDUST_DISPLAY_NAME,
   };
@@ -213,6 +218,12 @@ const make = Effect.fn("desktop.environment.make")(function* (
     appDataDirectory,
     baseDir,
     stateDir,
+    legacyStateDir: resolveLegacyDesktopStateDir({
+      homeDirectory,
+      isDevelopment,
+      joinPath: path.join,
+      t3Home: config.t3Home,
+    }),
     desktopSettingsPath: path.join(stateDir, "desktop-settings.json"),
     clientSettingsPath: path.join(stateDir, "client-settings.json"),
     savedEnvironmentRegistryPath: path.join(stateDir, "saved-environments.json"),
@@ -250,8 +261,8 @@ const make = Effect.fn("desktop.environment.make")(function* (
             input.platform === "win32"
               ? `${STARDUST_WINDOWS_BRAND.appId}.dev`
               : isDevelopment
-                ? "com.t3tools.t3code.dev"
-                : "com.t3tools.t3code",
+                ? `${STARDUST_WINDOWS_BRAND.appId}.dev`
+                : STARDUST_WINDOWS_BRAND.appId,
           ),
     linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
     linuxApplicationsDir,

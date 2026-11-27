@@ -1,4 +1,6 @@
 {
+  "stardust.startup.lock.title": "星尘无法启动",
+  "stardust.startup.lock.message": "星尘无法锁定数据目录，也未能联系到已打开的星尘窗口。请关闭残留的星尘进程，确认数据目录可写后再试。",
   "97665653aa9129ad": "正在检查新版本…",
   "dce25e68e60eb512": "版本 {version} 可用。它可能包含修复。",
   "2f015e6d5459dce9": "更新到 {version}",

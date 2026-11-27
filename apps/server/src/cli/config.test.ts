@@ -125,6 +125,45 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
     );
   });
 
+  it.effect("copies the default WSL desktop home without reusing its old runtime owner", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped();
+      const legacy = path.join(root, ".t3", "userdata");
+      yield* fs.makeDirectory(legacy, { recursive: true });
+      yield* fs.writeFileString(path.join(legacy, "keybindings.json"), "[]");
+      yield* fs.writeFileString(path.join(legacy, "server-runtime.json"), "old ownership");
+      const config = yield* resolveServerConfig(
+        {
+          ...minimalWebFlags(root),
+          baseDir: Option.none(),
+          cwd: Option.some(root),
+          mode: Option.some("desktop"),
+          port: Option.some(3780),
+        },
+        Option.none(),
+      ).pipe(
+        Effect.provideService(HostProcess.HomeDirectory, root),
+        Effect.provide(
+          Layer.merge(
+            NetService.layer,
+            ConfigProvider.layer(
+              ConfigProvider.fromEnv({ env: { STARDUST_WSL_DEFAULT_HOME: "true" } }),
+            ),
+          ),
+        ),
+      );
+      assert.equal(config.baseDir, path.join(root, ".stardust"));
+      assert.equal(yield* fs.readFileString(config.keybindingsConfigPath), "[]");
+      assert.isFalse(yield* fs.exists(config.serverRuntimeStatePath));
+      assert.equal(
+        yield* fs.readFileString(path.join(legacy, "server-runtime.json")),
+        "old ownership",
+      );
+    }).pipe(Effect.scoped),
+  );
+
   it.effect("keeps stale records and supervised startup out of the manual launch preflight", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;

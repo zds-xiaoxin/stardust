@@ -675,6 +675,7 @@ describe("DesktopBackendConfiguration", () => {
           "--exec",
           "env",
           "PATH=/home/test user's/.nvm/versions/node/v22.0.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/test user/bin:/opt/test's tools/bin:/usr/bin:/bin",
+          "STARDUST_WSL_DEFAULT_HOME=true",
           nodePath,
           linuxEntryPath,
           "--bootstrap-fd",
