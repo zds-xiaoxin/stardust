@@ -180,3 +180,19 @@ it("follows a held pointer between stops and settles on the selected level after
   await expect.element(slider).toHaveAttribute("aria-valuetext", "High");
   await expect.element(slider).toHaveFocus();
 });
+
+it("keeps the full reasoning label visible at the model picker's width", async () => {
+  const container = document.createElement("div");
+  container.style.cssText = "box-sizing:border-box;width:386px;padding:12px";
+  await using screen = await render(<Column />, { container, router: false });
+  const slider = screen.getByRole("slider", { name: "Reasoning effort" });
+  const row = slider.element().closest(".gx")!;
+  const label = row.querySelector(".gx-t") as HTMLElement;
+  const value = row.querySelector(".gx-v") as HTMLElement;
+  expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
+  expect(value.scrollWidth).toBeLessThanOrEqual(value.clientWidth + 1);
+  expect(
+    slider.element().querySelector(".gx-ch")!.getBoundingClientRect().width /
+      row.getBoundingClientRect().width,
+  ).toBeCloseTo(0.58, 1);
+});
