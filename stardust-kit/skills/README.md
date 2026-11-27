@@ -21,7 +21,7 @@ npm install --save-dev playwright
 npx playwright install chromium
 ```
 
-若已有 Google Chrome，可跳过 Chromium 下载，用 `PW_CHANNEL=chrome node <脚本路径> …` 启动。录屏还需要 Playwright 对应的 FFmpeg（可用 `npx playwright install ffmpeg` 安装）；导出 MP4 另需系统 `ffmpeg`。已有依赖可设 `PLAYWRIGHT_PATH` 为本机 `node_modules` 的绝对路径。本地页面模式离线运行，指定在线 URL 会访问该地址。
+若已有 Google Chrome，可跳过 Chromium 下载，用 `PW_CHANNEL=chrome node <脚本路径> …` 启动。录屏还需要 Playwright 对应的 FFmpeg（可用 `npx playwright install ffmpeg` 安装）；导出 MP4 另需系统 `ffmpeg`。已有依赖可设 `PLAYWRIGHT_PATH` 为本机 `node_modules` 的绝对路径。脚本本身在运行时绝不自动下载或安装包；本地模式（含 `proportion-check.mjs` 的本地 HTML）仅从目标根目录经 `https://app.local` 离线响应，其余所有域名与越界路径一律阻断，只有显式传入在线 URL 时才会访问该地址。
 
 - **Claude Code**：把需要的技能文件夹复制到 `~/.claude/skills/`（个人）或项目的 `.claude/skills/`。每个文件夹里的 `SKILL.md` 带 `name` 与 `description`，会按触发词自动加载。
 - **Codex、Antigravity 与 Gemini CLI**：把每个技能的完整文件夹复制到项目的 `.agents/skills/`。例如从本套件根目录执行下面两行，把路径换成目标项目。三个工具可共用同一份。重新打开项目后，在 Codex 的技能列表、Antigravity 的 `/skills` 或受信项目中的 `gemini skills list --all` 核对这四项。
@@ -66,7 +66,7 @@ npm install --save-dev playwright
 npx playwright install chromium
 ```
 
-With Google Chrome installed, skip the Chromium download and run `PW_CHANNEL=chrome node <script> …`. Recording also needs Playwright’s FFmpeg (`npx playwright install ffmpeg`); MP4 conversion needs `ffmpeg` on your PATH. To reuse another installation, set `PLAYWRIGHT_PATH` to its absolute `node_modules` path. Local-file mode works offline. Passing a live URL accesses that site.
+With Google Chrome installed, skip the Chromium download and run `PW_CHANNEL=chrome node <script> …`. Recording also needs Playwright’s FFmpeg (`npx playwright install ffmpeg`); MP4 conversion needs `ffmpeg` on your PATH. To reuse another installation, set `PLAYWRIGHT_PATH` to its absolute `node_modules` path. Scripts never install or download packages at runtime; local-file mode (including local HTML in `proportion-check.mjs`) serves strictly within the target root at `https://app.local` and aborts all other origins or out-of-root paths. Passing an explicit live URL accesses that URL.
 
 - **Claude Code:** copy the skill folders to `~/.claude/skills/` (personal) or `.claude/skills/` in a project. Each `SKILL.md`
   has `name` and `description` frontmatter and loads on its trigger phrases.

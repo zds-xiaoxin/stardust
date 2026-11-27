@@ -17,15 +17,16 @@ Authored by the Stardust project, MIT License. Generic; works on any static HTML
 Evidence beats assertion. After any visual change, produce the matrix, look at the images yourself, and report what
 you saw, including what you did not capture.
 
-## Setup (once)
+## Prerequisites
 
-```sh
-npm i -D playwright && npx playwright install chromium    # or set PW_CHANNEL=chrome to use installed Chrome
-```
+**Scripts never install or download packages at runtime.** They require an already-installed `playwright` package in your
+project's `node_modules` (or pointed to via `PLAYWRIGHT_PATH`) and either Playwright's Chromium or an existing Google Chrome
+(`PW_CHANNEL=chrome`). See `../README.md` for one-time environment setup.
 
-Scripts live in `scripts/` and import `_pw.mjs`. If Playwright is installed elsewhere, set `PLAYWRIGHT_PATH` to its
-`node_modules` directory. No script starts a long-running server: local files are served by Playwright request routing
-at `https://app.local/` (use `--mount /prefix` if the site is deployed under a path), everything else is blocked offline.
+Scripts live in `scripts/` and import `_pw.mjs`. No script starts a long-running server: local files (including local HTML
+inputs to `proportion-check.mjs`) are served strictly inside the target root via Playwright request routing at
+`https://app.local/` (use `--mount /prefix` if the site is deployed under a path), and requests to any other origin are
+aborted offline. Passing an explicit `--url` accesses that live URL.
 
 ## The matrix
 
@@ -62,7 +63,9 @@ drift in the proportion check).
 3. **Look at every image class** (at least one per viewport and theme). Check clipping, overflow, contrast, wrapping,
    long Chinese/English strings, sticky headers covering content (use `--hide` to hide a floating nav for full-page shots).
 4. **Proportions: uniform scale only.** A candidate may be 0.5x or 2x, but width and height must scale by the same factor.
-   If it does not match, change the layout; never stretch the image or tweak one axis. See `references/proportion-rule.md`.
+   Image mode (`--orig`/`--cand`) verifies only outer image aspect ratio; use HTML mode (`--orig-html`/`--cand-html` with
+   `--parts`) plus visual inspection of the difference overlay to catch inner geometry distortion. If it does not match,
+   change the layout; never stretch the image or tweak one axis. See `references/proportion-rule.md`.
 5. **Full-page shots of reveal-on-scroll pages** need a prescroll (default on) or half the page is blank.
 6. **Reduced motion is on by default** for stable stills; pass `--motion` to keep animations.
 7. **Report honestly:** list which matrix cells were captured and which were skipped; quote overflow/error lines verbatim.

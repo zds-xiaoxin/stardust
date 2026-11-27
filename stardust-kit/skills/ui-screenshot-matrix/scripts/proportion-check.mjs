@@ -4,18 +4,17 @@
 // scale by the same factor; any stretch, squash or per-axis fudge is a FAIL. Never "fix" proportions by stretching.
 //
 // Parts use the FIRST VISIBLE match inside the root element.
-// A. Two images:
+// A. Two images (checks outer image aspect ratio only; does not detect inner distortion inside a same-ratio canvas):
 //   node proportion-check.mjs --orig original.png --cand candidate.png --out check.png [--tol 0.01]
-// B. Two live elements (HTML files or URLs), captured first, then compared; optional sub-part layout check:
+// B. Two live elements (local HTML files served offline via https://app.local, or http(s) URLs), plus optional --parts:
 //   node proportion-check.mjs --orig-html orig.html --orig-sel "#hero" --cand-html cand.html --cand-sel "#hero"
-//        --parts ".logo,.title,.cta" --viewport 1200x800 --out check.png [--tol 0.01]
+//        [--orig-root ./orig-site] [--cand-root ./cand-site] --parts ".logo,.title,.cta" --viewport 1200x800 --out check.png [--tol 0.01]
 // Output: scale factors, aspect-ratio error, per-part normalised position/size deltas, PASS/FAIL, and the sheet PNG.
 // Exit code 1 on FAIL. --tol is a fraction (0.01 = 1%).
-import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname, join, relative, sep } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
-import { loadPlaywright, launch, args } from './_pw.mjs';
+import { loadPlaywright, launch, serveFolder, ORIGIN, isInsideRoot, args } from './_pw.mjs';
 
 const o = args();
 const tol = Number(o.tol ?? 0.01);
@@ -23,12 +22,21 @@ const out = resolve(o.out || 'proportion-check.png');
 mkdirSync(dirname(out), { recursive: true });
 const [vw, vh] = String(o.viewport || '1200x800').split('x').map(Number);
 const pw = await loadPlaywright();
-const browser = await launch(pw, { args: ['--allow-file-access-from-files'] });
-const toUrl = s => /^https?:|^file:/.test(s) ? s : pathToFileURL(resolve(s)).href;
+const browser = await launch(pw);
 
-async function capture(src, sel, parts, file) {
-  const page = await browser.newPage({ viewport: { width: vw, height: vh }, reducedMotion: 'reduce' });
-  await page.goto(toUrl(src), { waitUntil: 'load' }); await page.waitForTimeout(600);
+async function capture(src, sel, parts, file, rootOverride) {
+  const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, reducedMotion: 'reduce' });
+  let targetUrl = src;
+  if (!/^https?:\/\//i.test(src)) {
+    const absFile = resolve(src.replace(/^file:\/\//i, ''));
+    let rootDir = rootOverride ? resolve(rootOverride) : dirname(absFile);
+    if (!isInsideRoot(rootDir, absFile)) rootDir = dirname(absFile);
+    await serveFolder(ctx, rootDir);
+    const relPath = relative(rootDir, absFile).split(sep).map(encodeURIComponent).join('/');
+    targetUrl = `${ORIGIN}/${relPath}`;
+  }
+  const page = await ctx.newPage();
+  await page.goto(targetUrl, { waitUntil: 'load' }); await page.waitForTimeout(600);
   const el = page.locator(sel).first(); await el.scrollIntoViewIfNeeded();
   const box = await el.boundingBox(); await el.screenshot({ path: file });
   const rel = [];
@@ -36,7 +44,7 @@ async function capture(src, sel, parts, file) {
     const b = await el.locator(p + ' >> visible=true').first().boundingBox({ timeout: 1500 }).catch(() => null);
     rel.push(b ? { part: p, x: (b.x - box.x) / box.width, y: (b.y - box.y) / box.height, w: b.width / box.width, h: b.height / box.height } : { part: p, missing: true });
   }
-  await page.close();
+  await ctx.close();
   return { box, rel };
 }
 
@@ -44,8 +52,8 @@ let origImg = o.orig, candImg = o.cand, partsO = [], partsC = [], boxO, boxC;
 if (o['orig-html']) {
   const parts = o.parts ? String(o.parts).split(',') : [];
   const dir = join(dirname(out), '_capture'); mkdirSync(dir, { recursive: true });
-  const a = await capture(o['orig-html'], o['orig-sel'] || 'body', parts, join(dir, 'orig.png'));
-  const b = await capture(o['cand-html'], o['cand-sel'] || 'body', parts, join(dir, 'cand.png'));
+  const a = await capture(o['orig-html'], o['orig-sel'] || 'body', parts, join(dir, 'orig.png'), o['orig-root']);
+  const b = await capture(o['cand-html'], o['cand-sel'] || 'body', parts, join(dir, 'cand.png'), o['cand-root']);
   origImg = join(dir, 'orig.png'); candImg = join(dir, 'cand.png'); partsO = a.rel; partsC = b.rel; boxO = a.box; boxC = b.box;
 }
 if (!origImg || !candImg) { console.error('need --orig/--cand images or --orig-html/--cand-html'); process.exit(2); }
@@ -80,6 +88,7 @@ await sheet.screenshot({ path: out, fullPage: true });
 console.log(`original ${A.w}×${A.h}, candidate ${B.w}×${B.h}; scale x=${sx.toFixed(4)} y=${sy.toFixed(4)}; aspect error ${(stretch * 100).toFixed(2)}%`);
 for (const c of checks) console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}: ${isNaN(c.value) ? c.note : (c.value * 100).toFixed(2) + '%'} (tol ${(tol * 100).toFixed(1)}%)`);
 console.log(pass ? 'RESULT: PASS (uniform scale)' : 'RESULT: FAIL. Fix the layout, not the scale. Do not stretch to match.');
+if (!partsO.length) console.log('note: outer box/image ratio checked only; inspect the diff sheet (or pass --orig-html/--cand-html with --parts) to catch inner geometry distortion.');
 console.log('sheet →', out);
 await browser.close();
 process.exitCode = pass ? 0 : 1;

@@ -7,8 +7,8 @@
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { readFile } from 'node:fs/promises';
-import { existsSync, statSync } from 'node:fs';
-import { join, extname, resolve } from 'node:path';
+import { existsSync, statSync, realpathSync } from 'node:fs';
+import { join, extname, resolve, relative, isAbsolute, sep } from 'node:path';
 
 export async function loadPlaywright() {
   const tries = [
@@ -38,20 +38,32 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
   '.woff2': 'font/woff2', '.mp4': 'video/mp4', '.webm': 'video/webm' };
 export const ORIGIN = 'https://app.local';
 
+export function isInsideRoot(rootDir, targetPath) {
+  const rel = relative(rootDir, targetPath);
+  return rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel);
+}
+
 // mount: URL prefix that maps to `root` (e.g. '/stardust' if the site is deployed under /stardust/).
 export async function serveFolder(ctx, root, mount = '') {
-  root = resolve(root);
+  const realRoot = existsSync(root) ? realpathSync(root) : resolve(root);
   mount = mount.replace(/\/$/, '');
-  await ctx.route(`${ORIGIN}/**`, async r => {
-    let p = decodeURIComponent(new URL(r.request().url()).pathname);
-    if (mount && p.startsWith(mount)) p = p.slice(mount.length);
-    let f = join(root, p);
-    if (!f.startsWith(root)) return r.fulfill({ status: 403, body: 'forbidden' });
+  await ctx.route('**/*', async r => {
+    const rawUrl = r.request().url();
+    if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:') || rawUrl.startsWith('about:')) return r.continue();
+    let u;
+    try { u = new URL(rawUrl); } catch { return r.abort(); }
+    if (u.origin !== ORIGIN) return r.abort();
+    let p;
+    try { p = decodeURIComponent(u.pathname); } catch { return r.fulfill({ status: 400, body: 'bad path' }); }
+    if (mount && (p === mount || p.startsWith(mount + '/'))) p = p.slice(mount.length) || '/';
+    let f = resolve(realRoot, '.' + (p.startsWith('/') ? p : '/' + p));
+    if (!isInsideRoot(realRoot, f)) return r.fulfill({ status: 403, body: 'forbidden' });
     if (existsSync(f) && statSync(f).isDirectory()) f = join(f, 'index.html');
     if (!existsSync(f)) return r.fulfill({ status: 404, body: 'not found' });
-    r.fulfill({ status: 200, contentType: TYPES[extname(f)] || 'application/octet-stream', body: await readFile(f) });
+    const realFile = realpathSync(f);
+    if (!isInsideRoot(realRoot, realFile)) return r.fulfill({ status: 403, body: 'forbidden' });
+    r.fulfill({ status: 200, contentType: TYPES[extname(realFile)] || 'application/octet-stream', body: await readFile(realFile) });
   });
-  await ctx.route(/^https?:\/\/(?!app\.local)/, r => r.abort());
 }
 
 // Tiny argv parser: --key value, --flag, repeated keys become arrays.

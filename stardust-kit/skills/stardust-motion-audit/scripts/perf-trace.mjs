@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Measure smoothness during a scripted interaction: long tasks, frames over 16.7 / 33 ms, CLS, p95 frame time.
+// Measure smoothness during a scripted interaction: long tasks, frames over 16.7 / 33 ms, interaction-window CLS
+// (Web Vitals max session window: <=1s gap, <=5s max span, excluding hadRecentInput), layoutShiftSum, p95 frame time.
 // ("over16_7" counts frames > 17.2 ms = 16.7 plus 0.5 ms timer jitter; "over33" counts frames > 33.3 ms.)
 // Optionally throttles the CPU (mobile proxy) and writes a Chrome trace you can open in DevTools / Perfetto.
 //
@@ -47,12 +48,25 @@ await page.evaluate(() => {
     cancelAnimationFrame(raf); obs.forEach(x => x.disconnect());
     const f = frames.slice(1), sorted = [...f].sort((a, b) => a - b);
     const pct = p => sorted.length ? +sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))].toFixed(1) : 0;
+    const validShifts = shifts.filter(e => !e.hadRecentInput);
+    let cls = 0, winVal = 0, winStart = 0, prevTime = 0;
+    for (const e of validShifts) {
+      const t = e.startTime;
+      if (!winVal || t - prevTime > 1000 || t - winStart > 5000) {
+        winStart = t; winVal = e.value;
+      } else {
+        winVal += e.value;
+      }
+      prevTime = t;
+      if (winVal > cls) cls = winVal;
+    }
+    const layoutShiftSum = validShifts.reduce((s, e) => s + e.value, 0);
     return {
       frames: f.length, over16_7: f.filter(x => x > 17.2).length, over33: f.filter(x => x > 33.3).length,
       maxFrameMs: sorted.length ? +sorted.at(-1).toFixed(1) : 0, p50: pct(.5), p95: pct(.95),
       longTasks: long.length, longTaskMs: +long.reduce((s, e) => s + e.duration, 0).toFixed(0),
       worstLongTaskMs: long.length ? +Math.max(...long.map(e => e.duration)).toFixed(0) : 0,
-      cls: +shifts.reduce((s, e) => s + (e.hadRecentInput ? 0 : e.value), 0).toFixed(4), shifts: shifts.length,
+      cls: +cls.toFixed(4), layoutShiftSum: +layoutShiftSum.toFixed(4), shifts: validShifts.length,
     };
   };
 });

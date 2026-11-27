@@ -13,9 +13,13 @@ right". Use the original as the source of truth; never redraw an imitation to ge
 
 1. **Measure the original** at its natural size: root box plus the parts you care about (logo, title, buttons).
 2. **Capture the candidate** at any size, from the same element.
-3. Run `proportion-check.mjs` in image mode or HTML mode. HTML mode also normalises parts:
-   `x/rootW, y/rootH, w/rootW, h/rootH` for the first visible match of each `--parts` selector; the part delta must be
-   <= tolerance of the root size.
+3. Run `proportion-check.mjs` in image mode or HTML mode.
+   - **Image mode** (`--orig` / `--cand`) checks only the outer image aspect ratio (`sx == sy`). A candidate whose outer
+     canvas has the right ratio can still squash an inner icon or card, so always inspect the difference overlay visually.
+   - **HTML mode** (`--orig-html` / `--cand-html`) serves local files offline via `https://app.local` (pass `--orig-root` /
+     `--cand-root` when assets live in a parent folder) and also normalises sub-parts:
+     `x/rootW, y/rootH, w/rootW, h/rootH` for the first visible match of each `--parts` selector; the part delta must be
+     <= tolerance of the root size.
 4. Open the sheet: original, candidate (same height), and a difference overlay. A clean overlay is near-black; coloured
    ghosting shows where geometry differs.
 5. If FAIL, change the layout/CSS of the candidate (not the screenshot), re-capture, re-run.

@@ -34,9 +34,9 @@ node scripts/perf-trace.mjs ... --trace perf/trace.json     # then open in DevTo
   `--url https://...` to test a live page instead.
 - `--steps steps.json` scripts the interaction. Steps: `scroll` (`"bottom"|"top"|px|selector`, `ms`), `click`, `hover`,
   `focus`, `press`, `type:{sel,text}`, `wait`, `eval`. Default is scroll to bottom and back.
-- Output: `frames`, `over16_7` (>17.2 ms), `over33`, `p50`, `p95`, `maxFrameMs`, `longTasks`, `worstLongTaskMs`, `cls`, `pass`.
-- Default budget: ≤2 frames over 33 ms, CLS ≤ 0.02, no long task over 200 ms, no page errors. Adjust with
-  `--max-over33 --max-cls --max-long`. Exit code 1 on failure, usable in CI.
+- Output: `frames`, `over16_7` (>17.2 ms), `over33`, `p50`, `p95`, `maxFrameMs`, `longTasks`, `worstLongTaskMs`, `cls` (Web Vitals max session window during the post-settle interaction: ≤1 s gap, ≤5 s max span, excluding `hadRecentInput`), `layoutShiftSum` (total non-input shift sum over the same interaction window), `shifts`, `pass`.
+- Default budget: ≤2 frames over 33 ms, interaction-window `cls` ≤ 0.02, no long task over 200 ms, no page errors. Adjust with
+  `--max-over33 --max-cls --max-long`. Exit code 1 on failure, usable in CI. Note: `buffered: false` measures only the scripted interaction after `--settle`, not initial page-load CLS.
 - Compare **before and after with identical flags**, ideally alternating two or three rounds (noise is real). Report the
   medians. Headless rAF is a proxy: say "not measured on a real device" if you did not.
 - `--trace` slows the page. Use it to diagnose a bad run, never for the reported number.

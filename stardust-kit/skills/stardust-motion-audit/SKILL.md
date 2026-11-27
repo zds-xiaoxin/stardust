@@ -41,6 +41,8 @@ press / hover · load / complete / error**. Scope runs from a page transition do
 2. **Inventory.** Walk the UI state by state and fill the table in `references/inventory-template.md`:
    `trigger → what moves → duration/curve → problem → fix`. Include states with NO motion (a jump is a finding).
    Use slow motion (`scripts/slowmo.js`, 0.25×) to see what really happens; do not trust the code.
+   Note: `slowmo.js` only slows CSS transitions/animations and WAAPI; for `requestAnimationFrame`/Canvas/timer motion,
+   use the `--motion-scale` token multiplier (Variant B in `scripts/slowmo.js`) or the component's own time scale.
 3. **Pick tokens, do not invent.** Map every row to a token in `references/tokens.md` (press/hover/swap/exit/enter/
    expand/pop). Only add a named token (reveal/travel/sky/ambient…) when no row fits, and document why.
 4. **Fix** with the smallest change: unify durations/curves, merge opacity+transform to one timing, cancel stale timers,
@@ -70,9 +72,9 @@ press / hover · load / complete / error**. Scope runs from a page transition do
 - `references/lessons.md` – lessons from auditing the Stardust product site and desktop app.
 - `references/tokens.css`, `references/tokens.ts` – drop-in token definitions (CSS custom properties + TS mirror).
 - `scripts/count-motion.mjs` – count distinct durations/curves (CSS/SCSS/TS/JS/HTML). No dependencies.
-- `scripts/slowmo.js` – slow-motion helper for DevTools or `addInitScript`.
-- `scripts/perf-trace.mjs` – Playwright run: long tasks, frames >16.7/33 ms, CLS, optional Chrome trace. Needs `playwright`.
-- `scripts/_pw.mjs` – shared helper (locate Playwright, serve a local folder without a server, step DSL).
+- `scripts/slowmo.js` – slow-motion helper for CSS transitions/animations & WAAPI (DevTools or `addInitScript`; rAF/Canvas uses `--motion-scale`).
+- `scripts/perf-trace.mjs` – Playwright run: long tasks, frames >16.7/33 ms, interaction-window CLS (max session window) + `layoutShiftSum`, optional Chrome trace. Needs pre-installed `playwright`.
+- `scripts/_pw.mjs` – shared helper (locate Playwright, offline `https://app.local` folder router with strict root/origin boundary, step DSL).
 
 ## Output contract
 
