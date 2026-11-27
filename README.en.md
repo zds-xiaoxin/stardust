@@ -14,9 +14,9 @@
 
 <p align="center">
   <a href="https://www.xiaoxin666.cn/stardust/en/"><strong>Website & Interactive Workshop</strong></a> ·
-  <a href="#download">Download v1.2.7</a> ·
+  <a href="#download">Download v1.2.8</a> ·
   <a href="https://github.com/zds-xiaoxin/stardust-legacy/releases">历史版本 / Older releases</a> ·
-  <a href="#release-highlights">v1.2.7</a> ·
+  <a href="#release-highlights">v1.2.8</a> ·
   <a href="#highlights">Highlights</a> ·
   <a href="#workshop">Stardust Kit</a> ·
   <a href="#updates-privacy">Updates & Privacy</a> ·
@@ -26,6 +26,10 @@
 ---
 
 <a id="release-highlights"></a>
+
+## Stability fixes in v1.2.8
+
+Retrying a Codex rewind retains imported history and the intended turns. Imported sessions keep their saved titles. Antigravity tasks can complete when the provider goes silent after its final reply. A first send can wait for its worktree to be ready.
 
 ## Inside Stardust v1.2.7
 
@@ -165,7 +169,7 @@ When the install cannot self-update, the card links to the GitHub release instea
 
 ## Download & Install
 
-[macOS ARM64 ZIP](https://github.com/zds-xiaoxin/stardust/releases/download/v1.2.7/Stardust-v1.2.7-macOS-arm64.zip) · [Windows x64 Setup](https://github.com/zds-xiaoxin/stardust/releases/download/v1.2.7/Stardust-v1.2.7-Windows-x64-Setup.exe) · [GitHub Releases / SHA256SUMS.txt](https://github.com/zds-xiaoxin/stardust/releases/latest)
+[macOS ARM64 ZIP](https://github.com/zds-xiaoxin/stardust/releases/download/v1.2.8/Stardust-v1.2.8-macOS-arm64.zip) · [Windows x64 Setup](https://github.com/zds-xiaoxin/stardust/releases/download/v1.2.8/Stardust-v1.2.8-Windows-x64-Setup.exe) · [GitHub Releases / SHA256SUMS.txt](https://github.com/zds-xiaoxin/stardust/releases/latest)
 
 ### macOS · Apple Silicon
 
@@ -176,7 +180,7 @@ Requires macOS 13 or later. Match the ZIP’s SHA-256 to the same release, then 
 Run this in the download folder and match the result against the 64-character digest for the ZIP in the release checksum file.
 
 ```sh
-shasum -a 256 Stardust-v1.2.7-macOS-arm64.zip
+shasum -a 256 Stardust-v1.2.8-macOS-arm64.zip
 ```
 
 Before replacing an existing install, let running tasks finish, quit the desktop app and back up your local data. On first launch, connect your signed-in agent CLI.
@@ -190,7 +194,7 @@ Windows 10/11 x64 beta. Verify the SHA-256 before running Setup. If SmartScreen 
 In the download folder, compute the digest with PowerShell and compare it with the EXE entry in the same checksum file.
 
 ```powershell
-(Get-FileHash Stardust-v1.2.7-Windows-x64-Setup.exe -Algorithm SHA256).Hash
+(Get-FileHash Stardust-v1.2.8-Windows-x64-Setup.exe -Algorithm SHA256).Hash
 ```
 
 [Windows installation and verification guide](docs/user/stardust-windows-install.md)
