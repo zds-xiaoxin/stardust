@@ -23,6 +23,8 @@ import * as DateTime from "effect/DateTime";
 
 import { isLocalLoopbackHost, isWildcardHost } from "./hostClassification.ts";
 
+export { quotaReadingStale } from "./quotaFreshness.ts";
+
 const MINUTE = 60_000;
 
 export function exhaustedUsageWindow(
@@ -1319,20 +1321,4 @@ export function quotaAccounts(presentations: Presentations): readonly QuotaAccou
       title: (siblings.get(a.driver) ?? 0) > 1 ? a.name || `${a.label} ${index}` : a.label,
     };
   });
-}
-
-export function quotaReadingStale(
-  limits: ServerProviderUsageLimits | undefined,
-  now: number,
-  connected = true,
-  failed = false,
-) {
-  const checked = Date.parse(limits?.checkedAt ?? "");
-  return (
-    !connected ||
-    failed ||
-    limits?.unavailable?.reason === "probeFailed" ||
-    !Number.isFinite(checked) ||
-    now - checked > 10 * 60_000
-  );
 }

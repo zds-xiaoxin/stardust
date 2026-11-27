@@ -113,12 +113,12 @@ export function quotaState(
   const reset = Date.parse(window.resetsAt ?? "");
   if (Number.isFinite(reset) && reset <= now)
     return { remaining: Math.round(100 - window.usedPercent), state: "reset" as const };
-  // Shift `now` so the shared 10-minute rule becomes the top bar's 30-minute freshness window.
   const stale = quotaReadingStale(
     account.limits,
-    now - (QUOTA_TOPBAR_FRESH_MS - 10 * 60_000),
+    now,
     account.connected,
     account.failed,
+    QUOTA_TOPBAR_FRESH_MS,
   );
   return {
     remaining: Math.round(100 - Math.max(0, Math.min(100, window.usedPercent))),

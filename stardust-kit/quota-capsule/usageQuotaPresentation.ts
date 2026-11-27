@@ -39,7 +39,7 @@ export function quotaWindowLabel(label: string, chinese: boolean): string {
     .replace(/\bSession\b/gi, copy("Current window", undefined, "zh-CN"));
 }
 
-export { quotaReadingStale } from "@t3tools/shared/usageLimits";
+export { quotaReadingStale } from "./quotaFreshness";
 export function quotaReadingLabel(limits: ServerProviderUsageLimits | undefined) {
   const checked = Date.parse(limits?.checkedAt ?? "");
   const stamp = Number.isFinite(checked)
