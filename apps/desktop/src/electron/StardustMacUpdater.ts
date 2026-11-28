@@ -116,8 +116,7 @@ export async function prepareStardustUpdate(options: {
   readonly execFile: StardustMacUpdaterDeps["execFile"];
 }): Promise<string> {
   const { execFile } = options;
-  await NodeFS.promises.rm(options.extractDir, { recursive: true, force: true });
-  await NodeFS.promises.mkdir(options.extractDir, { recursive: true });
+  await NodeFS.promises.mkdir(options.extractDir);
   try {
     await execFile("/usr/bin/ditto", ["-x", "-k", options.zipPath, options.extractDir]);
   } catch (cause) {
@@ -207,7 +206,7 @@ export function makeStardustMacUpdater(deps: StardustMacUpdaterDeps) {
         toVersion: update.release.version,
         relaunch,
       });
-      const scriptPath = NodePath.join(paths.cacheRoot, `install-${update.release.version}.zsh`);
+      const scriptPath = NodePath.join(update.versionDir, "install.zsh");
       try {
         NodeFS.mkdirSync(NodePath.dirname(paths.logPath), { recursive: true });
         NodeFS.writeFileSync(scriptPath, script, { mode: 0o700 });

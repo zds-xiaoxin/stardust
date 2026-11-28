@@ -66,6 +66,29 @@ interface StardustInstaller {
   readonly onRegularQuit?: () => void;
 }
 
+async function createDownloadDirectory(
+  installer: StardustInstaller,
+  version: string,
+  runningVersion: string,
+): Promise<string> {
+  const { cacheRoot, target } = installer;
+  const prefix = target === "macOS-arm64" ? "mac" : "win";
+  for (const entry of await NodeFS.promises.readdir(cacheRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const cachedVersion =
+      entry.name.match(/^(?:mac|win)-(\d+\.\d+\.\d+)-[A-Za-z0-9]{6}$/)?.[1] ?? entry.name;
+    // Another updater may still be using a newer payload. Only prune installed or older versions,
+    // and let a fresh download proceed if those directories are busy.
+    if (!parseStardustVersion(cachedVersion) || isStardustUpgrade(cachedVersion, runningVersion)) {
+      continue;
+    }
+    await NodeFS.promises
+      .rm(NodePath.join(cacheRoot, entry.name), { recursive: true, force: true, maxRetries: 2 })
+      .catch(() => {});
+  }
+  return NodeFS.promises.mkdtemp(NodePath.join(cacheRoot, `${prefix}-${version}-`));
+}
+
 export function describe(cause: unknown): string {
   return (cause instanceof Error ? cause.message : String(cause)).slice(0, 500);
 }
@@ -223,24 +246,7 @@ export function makeStardustUpdater(deps: StardustUpdaterDeps, installer: Stardu
     const prepare = await installer.beforeDownload(release);
     prepared = null;
     await NodeFS.promises.mkdir(installer.cacheRoot, { recursive: true });
-    const versionDir = NodePath.join(installer.cacheRoot, release.version);
-    // Drop earlier downloads; only the release being fetched is kept.
-    for (const entry of await NodeFS.promises.readdir(installer.cacheRoot, {
-      withFileTypes: true,
-    })) {
-      if (
-        entry.isDirectory() &&
-        entry.name !== release.version &&
-        parseStardustVersion(entry.name)
-      ) {
-        await NodeFS.promises.rm(NodePath.join(installer.cacheRoot, entry.name), {
-          recursive: true,
-          force: true,
-        });
-      }
-    }
-    await NodeFS.promises.rm(versionDir, { recursive: true, force: true });
-    await NodeFS.promises.mkdir(versionDir, { recursive: true });
+    const versionDir = await createDownloadDirectory(installer, release.version, runningVersion);
     const assetPath = NodePath.join(versionDir, release.asset.name);
     const partialPath = `${assetPath}.part`;
     try {

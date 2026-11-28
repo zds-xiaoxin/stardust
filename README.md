@@ -14,9 +14,9 @@
 
 <p align="center">
   <a href="https://www.xiaoxin666.cn/stardust"><strong>产品官网与积木工坊</strong></a> ·
-  <a href="#download">下载 v1.2.8</a> ·
+  <a href="#download">下载 v1.2.9</a> ·
   <a href="https://github.com/zds-xiaoxin/stardust-legacy/releases">历史版本 / Older releases</a> ·
-  <a href="#release-highlights">v1.2.8</a> ·
+  <a href="#release-highlights">v1.2.9</a> ·
   <a href="#highlights">核心亮点</a> ·
   <a href="#workshop">星尘积木工坊</a> ·
   <a href="#updates-privacy">更新与隐私</a> ·
@@ -26,6 +26,10 @@
 ---
 
 <a id="release-highlights"></a>
+
+## v1.2.9 应用内更新修复
+
+macOS 和 Windows 下载更新时会使用新的暂存目录，避免旧缓存被占用或无法清理时中断下载。
 
 ## v1.2.8 稳定性更新
 
@@ -169,7 +173,7 @@ macOS 原生全屏时，星尘按窗口状态布置顶栏。Windows x64 的工�
 
 ## 下载与安装
 
-[macOS ARM64 ZIP](https://github.com/zds-xiaoxin/stardust/releases/download/v1.2.8/Stardust-v1.2.8-macOS-arm64.zip) · [Windows x64 Setup](https://github.com/zds-xiaoxin/stardust/releases/download/v1.2.8/Stardust-v1.2.8-Windows-x64-Setup.exe) · [GitHub Releases / SHA256SUMS.txt](https://github.com/zds-xiaoxin/stardust/releases/latest)
+[macOS ARM64 ZIP](https://github.com/zds-xiaoxin/stardust/releases/download/v1.2.9/Stardust-v1.2.9-macOS-arm64.zip) · [Windows x64 Setup](https://github.com/zds-xiaoxin/stardust/releases/download/v1.2.9/Stardust-v1.2.9-Windows-x64-Setup.exe) · [GitHub Releases / SHA256SUMS.txt](https://github.com/zds-xiaoxin/stardust/releases/latest)
 
 ### macOS · Apple Silicon
 
@@ -180,7 +184,7 @@ macOS 13 及以上。将 ZIP 的 SHA-256 与同一发行页的校验值对照后
 在下载目录运行以下命令，把结果与同一发行页中 ZIP 对应的 64 位校验值逐字对照。
 
 ```sh
-shasum -a 256 Stardust-v1.2.8-macOS-arm64.zip
+shasum -a 256 Stardust-v1.2.9-macOS-arm64.zip
 ```
 
 切换已有安装前，等运行中的任务结束，退出桌面应用并备份本地数据。首次启动后连接已登录的智能体 CLI。
@@ -194,7 +198,7 @@ Windows 10/11 x64 测试版。核对 SHA-256 后运行安装程序。如遇 Smar
 在下载目录用 PowerShell 计算校验值，对照同一份清单中的 EXE 条目。
 
 ```powershell
-(Get-FileHash Stardust-v1.2.8-Windows-x64-Setup.exe -Algorithm SHA256).Hash
+(Get-FileHash Stardust-v1.2.9-Windows-x64-Setup.exe -Algorithm SHA256).Hash
 ```
 
 [Windows 安装与校验说明](docs/user/stardust-windows-install.md)

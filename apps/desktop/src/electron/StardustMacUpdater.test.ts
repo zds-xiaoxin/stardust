@@ -7,7 +7,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import { it } from "@effect/vitest";
-import { afterEach, describe, expect } from "vite-plus/test";
+import { afterEach, describe, expect, vi } from "vite-plus/test";
 
 import { StardustUpdateError } from "../updates/stardustUpdate.ts";
 import {
@@ -82,6 +82,7 @@ function makeBundle(appPath: string, bundleId: string, communityVersion: string)
 }
 
 interface FakeOptions {
+  readonly home?: string;
   readonly latest?: unknown;
   readonly latestStatus?: number;
   readonly download?: Buffer;
@@ -93,8 +94,9 @@ interface FakeOptions {
 }
 
 function makeFixture(options: FakeOptions = {}) {
-  const home = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-stardust-updater-"));
-  temporaryDirs.push(home);
+  const home =
+    options.home ?? NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-stardust-updater-"));
+  if (!options.home) temporaryDirs.push(home);
   const currentAppPath =
     options.appPath?.(home) ?? NodePath.join(home, "Applications", "T3 Stardust.app");
   makeBundle(currentAppPath, BUNDLE_ID, options.runningVersion ?? "1.2.1");
@@ -284,13 +286,68 @@ describe("StardustMacUpdater download", () => {
         `xattr -dr com.apple.quarantine`,
         `xattr -p com.apple.quarantine`,
       ]);
-      const versionDir = NodePath.join(fixture.paths.cacheRoot, "1.2.2");
+      const [stage] = NodeFS.readdirSync(fixture.paths.cacheRoot);
+      expect(stage).toMatch(/^mac-1\.2\.2-/);
+      const versionDir = NodePath.join(fixture.paths.cacheRoot, stage!);
       expect(NodeFS.existsSync(NodePath.join(versionDir, "app", "T3 Stardust.app"))).toBe(true);
       // The verified zip is dropped once the bundle checks out.
       expect(NodeFS.readdirSync(versionDir)).toEqual(["app"]);
       expect(fixture.paths.cacheRoot).toBe(
         NodePath.join(fixture.home, "Library", "Caches", "T3 Stardust", "updates"),
       );
+    }),
+  );
+
+  it.effect("prepares an update even when the legacy bundle cache cannot be removed", () =>
+    Effect.gen(function* () {
+      const fixture = makeFixture();
+      const legacy = NodePath.join(fixture.paths.cacheRoot, "1.2.2");
+      const resources = NodePath.join(legacy, "app", "Stardust.app", "Contents", "Resources");
+      NodeFS.mkdirSync(resources, { recursive: true });
+      const busy = NodePath.join(fixture.paths.cacheRoot, "1.0.0");
+      const obsolete = NodePath.join(fixture.paths.cacheRoot, "mac-1.2.1-aB1234");
+      const otherAttempt = NodePath.join(fixture.paths.cacheRoot, "mac-1.2.2-bC2345");
+      for (const path of [busy, obsolete, otherAttempt]) NodeFS.mkdirSync(path);
+      const remove = NodeFS.promises.rm.bind(NodeFS.promises);
+      const cleanup = vi.spyOn(NodeFS.promises, "rm").mockImplementation((path, options) => {
+        if (path === legacy || path === busy) {
+          return Promise.reject(
+            Object.assign(new Error("directory not empty"), { code: "ENOTEMPTY" }),
+          );
+        }
+        return remove(path, options);
+      });
+      try {
+        yield* fixture.service.checkForUpdates;
+        const result = yield* fixture.run(fixture.service.downloadUpdate);
+        expect(Exit.isSuccess(result)).toBe(true);
+        expect(NodeFS.existsSync(resources)).toBe(true);
+        expect(NodeFS.existsSync(otherAttempt)).toBe(true);
+        expect(NodeFS.existsSync(obsolete)).toBe(false);
+        expect(fixture.events.at(-1)?.name).toBe("update-downloaded");
+      } finally {
+        cleanup.mockRestore();
+      }
+    }),
+  );
+
+  it.effect("keeps both payloads and installer scripts when two instances share the cache", () =>
+    Effect.gen(function* () {
+      const first = makeFixture();
+      const second = makeFixture({ home: first.home });
+      const prepare = (fixture: typeof first) =>
+        fixture.service.checkForUpdates.pipe(Effect.andThen(fixture.service.downloadUpdate));
+      yield* Effect.all([prepare(first), prepare(second)], { concurrency: "unbounded" });
+      for (const fixture of [first, second]) {
+        yield* fixture.service.quitAndInstall({ isSilent: true, isForceRunAfter: true });
+      }
+      const scripts = [first, second].map((fixture) => fixture.spawned[0]!.args[0]!);
+      expect(scripts[0]).not.toBe(scripts[1]);
+      for (const script of scripts) {
+        const stage = NodePath.dirname(script);
+        expect(NodeFS.existsSync(NodePath.join(stage, "app", "T3 Stardust.app"))).toBe(true);
+        expect(NodeFS.readFileSync(script, "utf8")).toContain(`CLEANUP='${stage}'`);
+      }
     }),
   );
 
@@ -302,7 +359,7 @@ describe("StardustMacUpdater download", () => {
       expect(causeOf(yield* tampered.run(tampered.service.downloadUpdate))?.code).toBe(
         "digest-mismatch",
       );
-      expect(NodeFS.existsSync(NodePath.join(tampered.paths.cacheRoot, "1.2.2"))).toBe(false);
+      expect(NodeFS.readdirSync(tampered.paths.cacheRoot)).toEqual([]);
       expect(tampered.execs.some((entry) => entry.startsWith("ditto"))).toBe(false);
 
       const oversized = makeFixture({ download: Buffer.concat([payload, Buffer.from("extra")]) });
@@ -326,7 +383,7 @@ describe("StardustMacUpdater download", () => {
         yield* fixture.run(fixture.service.checkForUpdates);
         const exit = yield* fixture.run(fixture.service.downloadUpdate);
         expect(causeOf(exit)?.code).toBe(code);
-        expect(NodeFS.existsSync(NodePath.join(fixture.paths.cacheRoot, "1.2.2"))).toBe(false);
+        expect(NodeFS.readdirSync(fixture.paths.cacheRoot)).toEqual([]);
         expect(fixture.events.some((event) => event.name === "update-downloaded")).toBe(false);
       }
     }),
@@ -376,7 +433,8 @@ describe("StardustMacUpdater install", () => {
       expect(fixture.spawned.length).toBe(1);
       const [{ file, args, script }] = fixture.spawned as [(typeof fixture.spawned)[number]];
       expect(file).toBe("/bin/zsh");
-      expect(args[0]).toBe(NodePath.join(fixture.paths.cacheRoot, "install-1.2.2.zsh"));
+      const [stage] = NodeFS.readdirSync(fixture.paths.cacheRoot);
+      expect(args[0]).toBe(NodePath.join(fixture.paths.cacheRoot, stage!, "install.zsh"));
       expect(script).toContain("PID=4242");
       expect(script).toContain("RELAUNCH=1");
       expect(script).toContain(`CURRENT='${fixture.currentAppPath}'`);

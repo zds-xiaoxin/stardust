@@ -6,13 +6,15 @@ import * as NodePath from "node:path";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import { it } from "@effect/vitest";
-import { expect } from "vite-plus/test";
+import { expect, vi } from "vite-plus/test";
 import { makeStardustWindowsUpdater } from "./StardustWindowsUpdater.ts";
 import { STARDUST_LATEST_RELEASE_API } from "../updates/stardustUpdate.ts";
 
 const installerName = "T3-Stardust-v1.3.1-Windows-x64-Setup.exe";
 const bytes = "fixture installer content";
 const sha256 = NodeCrypto.createHash("sha256").update(bytes).digest("hex");
+
+const updateCache = (localAppData: string) => NodePath.join(localAppData, "Stardust", "updates");
 
 function withFixture(tamper: boolean, launch: () => Promise<void> = async () => {}) {
   return Effect.acquireRelease(
@@ -102,9 +104,7 @@ it.effect("rejects tampered bytes and leaves no Windows installer to run", () =>
     const fixture = yield* withFixture(true);
     yield* fixture.service.checkForUpdates;
     expect(Exit.isFailure(yield* fixture.service.downloadUpdate.pipe(Effect.exit))).toBe(true);
-    expect(
-      NodeFS.existsSync(NodePath.join(fixture.localAppData, "Stardust", "updates", "1.3.1")),
-    ).toBe(false);
+    expect(NodeFS.readdirSync(updateCache(fixture.localAppData))).toEqual([]);
     expect(
       Exit.isFailure(
         yield* fixture.service
@@ -114,6 +114,40 @@ it.effect("rejects tampered bytes and leaves no Windows installer to run", () =>
     ).toBe(true);
     expect(fixture.scripts).toEqual([]);
     expect(fixture.quitCount()).toBe(0);
+  }),
+);
+
+it.effect("prepares setup even when an older cache and the target cache are locked", () =>
+  Effect.gen(function* () {
+    const fixture = yield* withFixture(false);
+    const cache = updateCache(fixture.localAppData);
+    const busy = NodePath.join(cache, "1.2.9");
+    const obsolete = NodePath.join(cache, "win-1.3.0-aB1234");
+    const legacy = NodePath.join(cache, "1.3.1");
+    const anotherAttempt = NodePath.join(cache, "win-1.3.1-bC2345");
+    for (const path of [busy, obsolete, legacy, anotherAttempt]) {
+      NodeFS.mkdirSync(path, { recursive: true });
+    }
+    const remove = NodeFS.promises.rm.bind(NodeFS.promises);
+    const cleanup = vi.spyOn(NodeFS.promises, "rm").mockImplementation((path, options) => {
+      if (path === busy || path === legacy) {
+        return Promise.reject(Object.assign(new Error("directory is locked"), { code: "EPERM" }));
+      }
+      return remove(path, options);
+    });
+    try {
+      yield* fixture.service.checkForUpdates;
+      yield* fixture.service.downloadUpdate;
+      yield* fixture.service.quitAndInstall({ isSilent: true, isForceRunAfter: true });
+      expect(NodeFS.existsSync(busy)).toBe(true);
+      expect(NodeFS.existsSync(legacy)).toBe(true);
+      expect(NodeFS.existsSync(anotherAttempt)).toBe(true);
+      expect(NodeFS.existsSync(obsolete)).toBe(false);
+      expect(fixture.scripts[0]).toMatch(/win-1\.3\.1-[A-Za-z0-9]{6}[/\\]T3-Stardust/);
+      expect(fixture.quitCount()).toBe(1);
+    } finally {
+      cleanup.mockRestore();
+    }
   }),
 );
 
@@ -148,14 +182,9 @@ it.effect(
       });
       yield* fixture.service.checkForUpdates;
       yield* fixture.service.downloadUpdate;
-      const installer = NodePath.join(
-        fixture.localAppData,
-        "Stardust",
-        "updates",
-        "1.3.1",
-        installerName,
-      );
-      expect(downloadedFiles).toEqual([installer]);
+      expect(downloadedFiles).toHaveLength(1);
+      const installer = downloadedFiles[0]!;
+      expect(NodePath.basename(installer)).toBe(installerName);
       expect(NodeFS.existsSync(installer)).toBe(true);
 
       yield* fixture.service.downloadUpdate;
@@ -165,7 +194,10 @@ it.effect(
       NodeFS.rmSync(installer);
       yield* fixture.service.downloadUpdate;
       expect(fixture.requests).toHaveLength(3);
-      expect(downloadedFiles).toEqual([installer, installer, installer]);
-      expect(NodeFS.existsSync(installer)).toBe(true);
+      expect(downloadedFiles).toHaveLength(3);
+      const replacement = downloadedFiles[2]!;
+      expect(replacement).not.toBe(installer);
+      expect(NodePath.basename(replacement)).toBe(installerName);
+      expect(NodeFS.readFileSync(replacement, "utf8")).toBe(bytes);
     }),
 );
